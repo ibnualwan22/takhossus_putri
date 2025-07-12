@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        nav { margin-bottom: 2em; }
+        nav a { margin-right: 1em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 2em;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .container { display: flex; gap: 4em; }
+        .form-container { flex: 1; }
+        .alert { padding: 1em; margin-bottom: 1em; border-radius: 5px; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
+        <a href="{{ url_for('admin.tambah_santri') }}">Tambah Santri Baru</a>
+        <a href="{{ url_for('admin.kelola_sks') }}">Kelola SKS</a>
+        <a href="{{ url_for('admin.input_rekap_sks') }}">Input Rekap SKS</a>
+        <a href="{{ url_for('admin.input_rekap_absensi') }}">Input Rekap Absensi</a>
+        <a href="{{ url_for('admin.input_buku_sadar') }}">Input Buku Sadar</a>
+    </nav>
+    
+    <h1>{{ title }}</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="form-container">
+            <h3>Tambah SKS Manual</h3>
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                <div class="form-field">
+                    {{ form.nama_sks.label }}<br>
+                    {{ form.nama_sks(size=30) }}
+                </div>
+                {{ form.submit_manual() }}
+            </form>
+        </div>
+        <div class="form-container">
+            <h3>Impor dari Excel</h3>
+            <p>Pastikan Excel punya header kolom <b>nama_sks</b>.</p>
+            <form method="POST" enctype="multipart/form-data">
+                {{ upload_form.hidden_tag() }}
+                {{ upload_form.file() }}<br><br>
+                {{ upload_form.submit_upload() }}
+            </form>
+        </div>
+    </div>
+
+    <hr style="margin: 2em 0;">
+
+    <h2>Daftar SKS Tersedia</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px;">No.</th>
+                <th>Nama SKS</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sks in sks_list %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ sks.nama_sks }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2">Belum ada data SKS.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

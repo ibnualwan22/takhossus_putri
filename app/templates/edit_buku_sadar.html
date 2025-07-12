@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    </head>
+<body>
+    <h1>{{ title }}</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+        <div class="form-field">
+            {{ form.tanggal.label }} <br>
+            {{ form.tanggal() }}
+        </div>
+        <div class="form-field">
+            {{ form.santri.label }} <br>
+            {{ form.santri() }}
+        </div>
+        <div class="form-field">
+            {{ form.jumlah.label }} <br>
+            {{ form.jumlah() }}
+        </div>
+        <div class="form-field">
+            {{ form.keterangan.label }} <br>
+            {{ form.keterangan(size=40) }}
+        </div>
+        <div class="form-field">
+            {{ form.riyadhoh.label }} <br>
+            {{ form.riyadhoh(size=40) }}
+        </div>
+        <div class="form-field">
+            {{ form.status_riyadhoh.label }} <br>
+            {{ form.status_riyadhoh() }}
+        </div>
+        <div class="form-field">
+            {{ form.submit(value='Perbarui Catatan') }}
+            <a href="{{ url_for('admin.list_riwayat_buku_sadar') }}" style="margin-left: 1em;">Batal</a>
+        </div>
+    </form>
+</body>
+</html>

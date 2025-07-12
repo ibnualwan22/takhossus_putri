@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        .form-field { margin-bottom: 1em; }
+        label { display: block; margin-bottom: 0.2em; font-weight: bold; }
+        input, select, textarea { padding: 0.5em; width: 300px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+
+        <div class="form-field">
+            {{ form.nama_lengkap.label }}<br>
+            {{ form.nama_lengkap() }}
+        </div>
+        <div class="form-field">
+            {{ form.alamat.label }}<br>
+            {{ form.alamat() }}
+        </div>
+        <div class="form-field">
+            {{ form.nama_orang_tua.label }}<br>
+            {{ form.nama_orang_tua() }}
+        </div>
+        <div class="form-field">
+            {{ form.nama_pembimbing.label }}<br>
+            {{ form.nama_pembimbing() }}
+        </div>
+        <div class="form-field">
+            {{ form.kelas_saat_ini.label }}<br>
+            {{ form.kelas_saat_ini() }}
+        </div>
+        <div class="form-field">
+            {{ form.kelas_sekolah.label }}<br>
+            {{ form.kelas_sekolah() }}
+        </div>
+        <div class="form-field">
+            {{ form.kamar.label }}<br>
+            {{ form.kamar() }}
+        </div>
+        <div class="form-field">
+            {{ form.submit(value='Perbarui Data') }}
+            <a href="{{ url_for('admin.daftar_santri') }}" style="margin-left: 1em;">Batal</a>
+        </div>
+    </form>
+</body>
+</html>

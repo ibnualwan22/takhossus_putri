@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        nav { margin-bottom: 2em; }
+        nav a { margin-right: 1em; }
+        .form-field { margin-bottom: 1em; }
+        label { display: block; margin-bottom: 0.2em; font-weight: bold; }
+        input, select, textarea { padding: 0.5em; width: 300px; box-sizing: border-box; }
+        .alert { padding: 1em; margin-bottom: 1em; border-radius: 5px; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
+        <a href="{{ url_for('admin.tambah_santri') }}">Tambah Santri Baru</a>
+        <a href="{{ url_for('admin.kelola_sks') }}">Kelola SKS</a>
+        <a href="{{ url_for('admin.input_rekap_sks') }}">Input Rekap SKS</a>
+        <a href="{{ url_for('admin.input_rekap_absensi') }}">Input Rekap Absensi</a>
+        <a href="{{ url_for('admin.input_buku_sadar') }}">Input Buku Sadar</a>
+    </nav>
+    
+    <h1>{{ title }}</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+
+        <div class="form-field">
+            {{ form.tanggal.label }} <br>
+            {{ form.tanggal() }}
+        </div>
+        <div class="form-field">
+            {{ form.santri.label }} <br>
+            {{ form.santri() }}
+        </div>
+        <div class="form-field">
+            {{ form.status.label }} <br>
+            {{ form.status() }}
+        </div>
+        <div class="form-field">
+            {{ form.keterangan.label }} <br>
+            {{ form.keterangan(size=40) }}
+        </div>
+        <div class="form-field">
+            {{ form.submit() }}
+        </div>
+    </form>
+</body>
+</html>

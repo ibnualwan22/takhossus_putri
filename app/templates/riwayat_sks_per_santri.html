@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    </head>
+<body>
+    <p>
+        <a href="{{ url_for('admin.riwayat_sks_global') }}">&laquo; Kembali ke Ringkasan Global</a>
+    </p>
+
+    <h1>Riwayat SKS untuk: <strong>{{ santri.nama_lengkap }}</strong></h1>
+    <p>Kelas: {{ santri.kelas_saat_ini }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Tanggal Selesai</th>
+                <th>Nama SKS</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rekap in sks_list %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ rekap.tanggal.strftime('%d %B %Y') }}</td>
+                <td>{{ rekap.sks.nama_sks }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align: center;">Santri ini belum menyelesaikan SKS apapun.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
