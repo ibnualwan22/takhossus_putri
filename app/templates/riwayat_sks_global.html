@@ -1,53 +1,41 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ title }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #f4f7f6; }
-        nav { margin-bottom: 2em; }
-        nav a { margin-right: 1em; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1.5em; background-color: white; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #e9ecef; }
-    </style>
-</head>
-<body>
-    <nav>
-        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.riwayat_absensi') }}">Riwayat Absensi</a>
-        <a href="{{ url_for('admin.riwayat_sks_global') }}">Riwayat SKS</a>
-        </nav>
-    
-    <h1>{{ title }}</h1>
+{% extends "layout.html" %}
 
-    <table>
-        <thead>
-            <tr>
-                <th>No.</th>
-                <th>Nama Santri</th>
-                <th>Kelas Halaqah</th>
-                <th>Jumlah SKS Selesai</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for santri in santri_list %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>
-                    <a href="{{ url_for('admin.riwayat_sks_per_santri', santri_id=santri.id) }}">
-                        {{ santri.nama_lengkap }}
-                    </a>
-                </td>
-                <td>{{ santri.kelas_saat_ini }}</td>
-                <td>{{ santri.rekap_sks|length }} SKS</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="4" style="text-align: center;">Tidak ada data santri.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+<p class="text-muted">Halaman ini adalah ringkasan. Klik pada nama santri untuk melihat detail SKS yang telah diselesaikan.</p>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Nama Santri</th>
+                        <th>Kelas Halaqah</th>
+                        <th>Jumlah SKS Selesai</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for santri in santri_list %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <a href="{{ url_for('admin.riwayat_sks_per_santri', santri_id=santri.id) }}">
+                                {{ santri.nama_lengkap }}
+                            </a>
+                        </td>
+                        <td>{{ santri.kelas_saat_ini or '-' }}</td>
+                        <td>{{ santri.rekap_sks|length }} SKS</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center">Tidak ada data santri.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

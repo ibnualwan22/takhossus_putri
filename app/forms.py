@@ -20,6 +20,7 @@ class SantriForm(FlaskForm):
     kelas_saat_ini = StringField('Kelas Saat Ini (Halaqah)')
     kelas_sekolah = StringField('Kelas Sekolah Formal')
     kamar = StringField('Kamar')
+    no_wa_wali = StringField('No. WhatsApp Wali (Contoh: 62812...)')
     submit = SubmitField('Tambah Santri')
 
 class UploadExcelForm(FlaskForm):

@@ -1,59 +1,40 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ title }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #f4f7f6; }
-        nav { margin-bottom: 2em; }
-        nav a { margin-right: 1em; text-decoration: none; color: #007bff; font-weight: bold; }
-        .stat-container { display: flex; flex-wrap: wrap; gap: 2em; }
-        .stat-card {
-            background-color: white;
-            padding: 1.5em;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            flex-grow: 1;
-            text-align: center;
-        }
-        .stat-card h3 { margin-top: 0; color: #555; }
-        .stat-card p { font-size: 2.5em; font-weight: bold; margin-bottom: 0; color: #333; }
-    </style>
-</head>
-<body>
-    <nav>
-        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
-        <a href="{{ url_for('admin.list_riwayat_buku_sadar') }}">Daftar Catatan</a>
-        <a href="{{ url_for('admin.kelola_sks') }}">Kelola SKS</a>
-        <a href="{{ url_for('admin.input_rekap_sks') }}">Input Rekap SKS</a>
-        <a href="{{ url_for('admin.input_rekap_absensi') }}">Input Rekap Absensi</a>
-        <a href="{{ url_for('admin.riwayat_absensi') }}">Riwayat Absensi</a>
-        <a href="{{ url_for('admin.input_buku_sadar') }}">Input Buku Sadar</a>
-        <a href="{{ url_for('admin.riwayat_buku_sadar') }}">Riwayat Buku Sadar</a>
-        <a href="{{ url_for('admin.riwayat_sks_global') }}">Riwayat SKS</a>
-        </nav>
-    
-    <h1>{{ title }}</h1>
+{% extends "layout.html" %}
 
-    <div class="stat-container">
-        <div class="stat-card">
-            <h3>Total Santri Aktif</h3>
-            <p>{{ jumlah_santri }}</p>
+{% block content %}
+    <h1 class="mb-4">{{ title }}</h1>
+
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-muted">Total Santri Aktif</h5>
+                    <p class="card-text fs-1 fw-bold">{{ jumlah_santri }}</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <h3>Total Jenis SKS</h3>
-            <p>{{ jumlah_sks }}</p>
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-muted">Total Jenis SKS</h5>
+                    <p class="card-text fs-1 fw-bold">{{ jumlah_sks }}</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <h3>Absensi Diinput Hari Ini</h3>
-            <p>{{ absen_hari_ini }}</p>
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-muted">Absensi Diinput Hari Ini</h5>
+                    <p class="card-text fs-1 fw-bold">{{ absen_hari_ini }}</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <h3>Catatan Buku Sadar Hari Ini</h3>
-            <p>{{ sadar_hari_ini }}</p>
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-muted">Catatan Buku Sadar Hari Ini</h5>
+                    <p class="card-text fs-1 fw-bold">{{ sadar_hari_ini }}</p>
+                </div>
+            </div>
         </div>
     </div>
-
-</body>
-</html>
+{% endblock %}

@@ -1,101 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ title }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; }
-        .form-field { margin-bottom: 1em; }
-        label { display: block; margin-bottom: 0.2em; font-weight: bold; }
-        input, select, textarea { padding: 0.5em; width: 300px; box-sizing: border-box; }
-        .alert { padding: 1em; margin-bottom: 1em; border-radius: 5px; }
-        .alert-success { background-color: #d4edda; color: #155724; }
-        nav { margin-bottom: 2em; }
-        nav a { margin-right: 1em; }
-    </style>
-</head>
-<body>
-   <nav>
-        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
-        <a href="{{ url_for('admin.tambah_santri') }}">Tambah Santri Baru</a>
-        <a href="{{ url_for('admin.kelola_sks') }}">Kelola SKS</a>
-        <a href="{{ url_for('admin.input_rekap_sks') }}">Input Rekap SKS</a>
-        <a href="{{ url_for('admin.input_rekap_absensi') }}">Input Rekap Absensi</a>
-        <a href="{{ url_for('admin.input_buku_sadar') }}">Input Buku Sadar</a>
-    </nav>
-    
-    <h1>{{ title }}</h1>
+{% extends "layout.html" %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+{% block content %}
+    <h1 class="mb-4">{{ title }}</h1>
+    {% include 'includes/_flash_messages.html' %}
 
-    <form method="POST" action="">
-        {{ form.hidden_tag() }}
-
-        <div class="form-field">
-            {{ form.nama_lengkap.label }}<br>
-            {{ form.nama_lengkap() }}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Formulir Input Santri</h5>
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                <div class="mb-3">
+                    {{ form.nama_lengkap.label(class="form-label") }}
+                    {{ form.nama_lengkap(class="form-control") }}
+                </div>
+                <div class="mb-3">
+                    {{ form.alamat.label(class="form-label") }}
+                    {{ form.alamat(class="form-control", rows=3) }}
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form.nama_orang_tua.label(class="form-label") }}
+                        {{ form.nama_orang_tua(class="form-control") }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        {{ form.no_wa_wali.label(class="form-label") }}
+                        {{ form.no_wa_wali(class="form-control") }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        {{ form.nama_pembimbing.label(class="form-label") }}
+                        {{ form.nama_pembimbing(class="form-control") }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        {{ form.kelas_saat_ini.label(class="form-label") }}
+                        {{ form.kelas_saat_ini(class="form-control") }}
+                    </div>
+                     <div class="col-md-4 mb-3">
+                        {{ form.kamar.label(class="form-label") }}
+                        {{ form.kamar(class="form-control") }}
+                    </div>
+                </div>
+                {{ form.submit(class="btn btn-primary") }}
+            </form>
+            <hr>
+            <h5 class="card-title mt-4 mb-3">Atau Impor dari Excel</h5>
+            <p class="card-text text-muted small">
+                Pastikan file Excel Anda memiliki kolom dengan header: 
+                <b>nama_lengkap, alamat, nama_orang_tua, no_wa_wali, nama_pembimbing, kelas_saat_ini, kamar</b>. 
+            </p>
+            <form method="POST" enctype="multipart/form-data">
+                {{ upload_form.hidden_tag() }}
+                <div class="mb-3">
+                    {{ upload_form.file(class="form-control") }}
+                </div>
+                {{ upload_form.submit_upload(class="btn btn-success") }}
+            </form>
         </div>
-        <div class="form-field">
-            {{ form.alamat.label }}<br>
-            {{ form.alamat() }}
-        </div>
-        <div class="form-field">
-            {{ form.nama_orang_tua.label }}<br>
-            {{ form.nama_orang_tua() }}
-        </div>
-        <div class="form-field">
-            {{ form.nama_pembimbing.label }}<br>
-            {{ form.nama_pembimbing() }}
-        </div>
-        <div class="form-field">
-            {{ form.kelas_saat_ini.label }}<br>
-            {{ form.kelas_saat_ini() }}
-        </div>
-        <div class="form-field">
-            {{ form.kelas_sekolah.label }}<br>
-            {{ form.kelas_sekolah() }}
-        </div>
-        <div class="form-field">
-            {{ form.kamar.label }}<br>
-            {{ form.kamar() }}
-        </div>
-        <div class="form-field">
-            {{ form.submit() }}
-        </div>
-    </form>
-    <form method="POST" action="">
-        {{ form.hidden_tag() }}
-        <div class="form-field">
-            {{ form.submit() }}
-        </div>
-    </form>
-
-    <hr style="margin: 2em 0;">
-
-    <h2>Atau Impor dari Excel</h2>
-    <p>
-        Pastikan file Excel Anda memiliki kolom dengan header: 
-        <b>nama_lengkap, alamat, nama_orang_tua, nama_pembimbing, kelas_saat_ini, kelas_sekolah, kamar</b>. 
-        Hanya <b>nama_lengkap</b> yang wajib diisi.
-    </p>
-    
-    <form method="POST" enctype="multipart/form-data">
-        {{ upload_form.hidden_tag() }}
-        <div class="form-field">
-            {{ upload_form.file.label }}<br>
-            {{ upload_form.file() }}
-        </div>
-        <div class="form-field">
-            {{ upload_form.submit_upload() }}
-        </div>
-    </form>
-
-</body>
-</html>
+    </div>
+{% endblock %}

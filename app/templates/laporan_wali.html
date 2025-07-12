@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Pilih Santri</h5>
+        <p class="card-text text-muted small">Pilih santri untuk membuat pratinjau laporan 7 hari terakhir.</p>
+        <form method="GET" action="{{ url_for('admin.laporan_ke_wali') }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="santri_id" class="form-label">Nama Santri</label>
+                    <select name="santri_id" id="santri_id" class="form-select" required>
+                        <option value="">-- Pilih Nama Santri --</option>
+                        {% for s in semua_santri %}
+                        <option value="{{ s.id }}" {% if s.id == selected_santri_id %}selected{% endif %}>{{ s.nama_lengkap }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">Tampilkan Pratinjau</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if laporan_data %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h3>Pratinjau Laporan untuk: <strong>{{ laporan_data.santri.nama_lengkap }}</strong></h3>
+        <p>
+            <strong>Nomor WA Wali:</strong> {{ laporan_data.santri.no_wa_wali or 'Belum diisi' }}
+        </p>
+        <hr>
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Rekap Absensi (7 Hari Terakhir)</h4>
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">Hadir <span class="badge bg-primary rounded-pill">{{ laporan_data.hadir }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">Sakit <span class="badge bg-warning rounded-pill">{{ laporan_data.sakit }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">Izin <span class="badge bg-info rounded-pill">{{ laporan_data.izin }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">Alpa <span class="badge bg-danger rounded-pill">{{ laporan_data.alpa }}</span></li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h4>SKS Selesai (7 Hari Terakhir)</h4>
+                <ul class="list-group">
+                    {% for sks in laporan_data.sks_list %}
+                    <li class="list-group-item">{{ sks }}</li>
+                    {% else %}
+                    <li class="list-group-item">Tidak ada SKS yang diselesaikan.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        {% if laporan_data.santri.no_wa_wali %}
+        <a href="https://wa.me/{{ laporan_data.santri.no_wa_wali }}?text={{ pesan_wa_encoded }}" target="_blank" class="btn btn-success mt-4"><i class="bi bi-whatsapp"></i> Kirim Laporan ke WA</a>
+        {% else %}
+        <p class="mt-4 text-danger fw-bold">Tombol kirim tidak muncul karena nomor WA wali belum diisi di data santri.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

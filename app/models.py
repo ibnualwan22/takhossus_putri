@@ -10,6 +10,7 @@ class Santri(db.Model):
     kelas_saat_ini = db.Column(db.String(50))
     kelas_sekolah = db.Column(db.String(50))
     kamar = db.Column(db.String(50))
+    no_wa_wali = db.Column(db.String(20), nullable=True)
 
     def __repr__(self):
         return f'<Santri {self.nama_lengkap}>'

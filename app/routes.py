@@ -1,16 +1,23 @@
-# app/routes.py
-
-from flask import Blueprint, render_template, redirect, url_for, flash, request, send_file
-from . import db
-from .forms import RekapSksForm, SantriForm, UploadExcelForm, SksMasterForm, AbsensiForm, BukuSadarForm
-from .models import Santri, SksMaster, RekapSks, RekapAbsensi, RekapBukuSadar
-import pandas as pd
-import os, io, calendar
-import numpy as np
-from flask import Blueprint, render_template, redirect, url_for, flash, current_app
-from datetime import date, datetime
-from sqlalchemy import extract
+import io
+import os
+import calendar
+import urllib.parse
+from datetime import date, datetime, timedelta
 from collections import defaultdict
+
+# 2. Pustaka Pihak Ketiga (Flask, SQLAlchemy, Pandas, dll)
+from flask import (Blueprint, render_template, redirect, url_for, 
+                   flash, request, send_file)
+from sqlalchemy import extract
+import pandas as pd
+import numpy as np
+
+# 3. Impor dari Aplikasi Lokal Anda
+from . import db
+from .models import (Santri, SksMaster, RekapSks, RekapAbsensi, 
+                     RekapBukuSadar)
+from .forms import (RekapSksForm, SantriForm, UploadExcelForm, 
+                    SksMasterForm, AbsensiForm, BukuSadarForm)
 
 
 # 1. Buat Blueprint untuk admin
@@ -88,7 +95,8 @@ def tambah_santri():
             nama_pembimbing=form.nama_pembimbing.data,
             kelas_saat_ini=form.kelas_saat_ini.data,
             kelas_sekolah=form.kelas_sekolah.data,
-            kamar=form.kamar.data
+            kamar=form.kamar.data,
+            no_wa_wali=form.no_wa_wali.data,
         )
         db.session.add(santri_baru)
         db.session.commit()
@@ -111,7 +119,8 @@ def tambah_santri():
                     nama_pembimbing=row.get('nama_pembimbing', None),
                     kelas_saat_ini=row.get('kelas_saat_ini', None),
                     kelas_sekolah=row.get('kelas_sekolah', None),
-                    kamar=row.get('kamar', None)
+                    kamar=row.get('kamar', None),
+                    no_wa_wali=row.get('no_wa_wali', None)
                 )
                 db.session.add(santri_excel)
             
@@ -173,6 +182,7 @@ def edit_santri(id):
         santri.kelas_saat_ini = form.kelas_saat_ini.data
         santri.kelas_sekolah = form.kelas_sekolah.data
         santri.kamar = form.kamar.data
+        santri.no_wa_wali = form.no_wa_wali.data
         
         db.session.commit()
         flash('Data santri berhasil diperbarui!', 'success')
@@ -307,10 +317,11 @@ def riwayat_absensi():
     )
 @admin_bp.route('/riwayat/absensi/export')
 def export_riwayat_absensi():
+    today_str = date.today().strftime('%Y-%m-%d')
     # 1. LOGIKA FILTER (SAMA PERSIS SEPERTI SEBELUMNYA)
     q_santri_id = request.args.get('santri_id', type=int)
-    q_start_date_str = request.args.get('start_date', '')
-    q_end_date_str = request.args.get('end_date', '')
+    q_start_date_str = request.args.get('start_date', today_str) # <-- UBAH DI SINI
+    q_end_date_str = request.args.get('end_date', today_str)   # <-- UBAH DI SINI
     q_status = request.args.get('status', '')
 
     query = RekapAbsensi.query
@@ -589,4 +600,79 @@ def riwayat_sks_per_santri(santri_id):
         title=f"Riwayat SKS - {santri.nama_lengkap}",
         santri=santri,
         sks_list=sks_selesai
+    )
+
+@admin_bp.route('/laporan/wali', methods=['GET'])
+def laporan_ke_wali():
+    # Ambil santri_id dari pilihan dropdown di URL
+    santri_id = request.args.get('santri_id', type=int)
+    # Ambil catatan tes manual dari form
+    tes_mapel_input = request.args.get('tes_mapel', '')
+
+    semua_santri = Santri.query.order_by(Santri.nama_lengkap).all()
+    
+    laporan_data = None
+    pesan_wa_encoded = None
+    
+    # Jika seorang santri telah dipilih dari dropdown
+    if santri_id:
+        santri = Santri.query.get_or_404(santri_id)
+        
+        # Tentukan rentang tanggal: 7 hari terakhir
+        end_date = date.today()
+        start_date = end_date - timedelta(days=6)
+
+        # 1. Ambil & hitung rekap absensi
+        absensi = RekapAbsensi.query.filter(
+            RekapAbsensi.santri_id == santri_id,
+            RekapAbsensi.tanggal.between(start_date, end_date)
+        ).all()
+        
+        rekap_absen = defaultdict(int)
+        for absen in absensi:
+            rekap_absen[absen.status] += 1
+
+        # 2. Ambil rekap SKS
+        sks_selesai = RekapSks.query.filter(
+            RekapSks.santri_id == santri_id,
+            RekapSks.tanggal.between(start_date, end_date)
+        ).all()
+        
+        laporan_data = {
+            'santri': santri,
+            'hadir': rekap_absen.get('hadir', 0),
+            'sakit': rekap_absen.get('sakit', 0),
+            'izin': rekap_absen.get('izin', 0),
+            'alpa': rekap_absen.get('alpa', 0),
+            'sks_list': [rekap.sks.nama_sks for rekap in sks_selesai]
+        }
+        
+        # 3. Buat pesan WhatsApp
+        sks_text = '\n'.join([f"- {sks}" for sks in laporan_data['sks_list']]) or "Tidak ada"
+        
+        pesan_template = (
+            f"Akademik Takhossus Putri: Assalamualaikum Wr. Wb.\n\n"
+            f"Kami dari pihak Akademik Madin Takhossus Amtsilati memberitahukan kepada bapak/ibu terkait perkembangan kegiatan belajar mengajar (KBM) ananda selama 1 minggu:\n\n"
+            f"A.n : *{laporan_data['santri'].nama_lengkap}*\n"
+            f"Fan : *{laporan_data['santri'].kelas_saat_ini}*\n\n"
+            f"Telah menyelesaikan tes mata pelajaran:\n"
+            f"{sks_text}\n\n"
+            f"Dan berikut rekapan absensi dalam 1 minggu ({start_date.strftime('%d/%m')} - {end_date.strftime('%d/%m/%Y')}):\n"
+            f"Hadir : {laporan_data['hadir']}\n"
+            f"Alfa : {laporan_data['alpa']}\n"
+            f"Sakit : {laporan_data['sakit']}\n"
+            f"Izin : {laporan_data['izin']}\n\n"
+            f"Sekian pemberitahuan dari kami, kurang lebihnya mohon maaf dan terima kasih.\n\n"
+            f"Wassalamualaikum Wr. Wb."
+        )
+        pesan_wa_encoded = urllib.parse.quote(pesan_template)
+
+    return render_template(
+        'laporan_wali.html',
+        title="Buat Laporan untuk Wali Santri",
+        semua_santri=semua_santri,
+        selected_santri_id=santri_id,
+        laporan_data=laporan_data,
+        pesan_wa_encoded=pesan_wa_encoded,
+        tes_mapel_input=tes_mapel_input
     )

@@ -1,66 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ title }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; }
-        nav { margin-bottom: 2em; }
-        nav a { margin-right: 1em; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-    </style>
-</head>
-<body>
-    <nav>
-        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
-        <a href="{{ url_for('admin.tambah_santri') }}">Tambah Santri Baru</a>
-        <a href="{{ url_for('admin.kelola_sks') }}">Kelola SKS</a>
-        <a href="{{ url_for('admin.input_rekap_sks') }}">Input Rekap SKS</a>
-        <a href="{{ url_for('admin.input_rekap_absensi') }}">Input Rekap Absensi</a>
-        <a href="{{ url_for('admin.input_buku_sadar') }}">Input Buku Sadar</a>
-    </nav>
-    
-    <h1>{{ title }}</h1>
+{% extends "layout.html" %}
 
-    <table>
-        <thead>
-            <tr>
-                <th>No.</th>
-                <th>Nama Lengkap</th>
-                <th>Kamar</th>
-                <th>Kelas Ngaji</th>
-                <th>Kelas Sekolah</th>
-                <th>Alamat</th>
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for santri in santri_list %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ santri.nama_lengkap }}</td>
-                <td>{{ santri.kamar }}</td>
-                <td>{{ santri.kelas_saat_ini }}</td>
-                <td>{{ santri.kelas_sekolah }}</td>
-                <td>{{ santri.alamat }}</td>
-                <td>
-                <a href="{{ url_for('admin.edit_santri', id=santri.id) }}">Edit</a> | 
-                <a href="{{ url_for('admin.hapus_santri', id=santri.id) }}" 
-                   onclick="return confirm('Apakah Anda yakin ingin menghapus santri ini?');">
-                   Hapus
-                </a>
-            </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6">Belum ada data santri.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>
+{% block content %}
+    <h1 class="mb-4">{{ title }}</h1>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Nama Lengkap</th>
+                            <th>Kamar</th>
+                            <th>Kelas Halaqah</th>
+                            <th>No. WA Wali</th>
+                            <th style="width: 10%;">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for santri in santri_list %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ santri.nama_lengkap }}</td>
+                            <td>{{ santri.kamar or '-' }}</td>
+                            <td>{{ santri.kelas_saat_ini or '-' }}</td>
+                            <td>{{ santri.no_wa_wali or '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_santri', id=santri.id) }}" class="btn btn-warning btn-sm">
+                                    <i class="bi bi-pencil-square"></i> Edit
+                                </a>
+                                <a href="{{ url_for('admin.hapus_santri', id=santri.id) }}" class="btn btn-danger btn-sm"
+                                   onclick="return confirm('Apakah Anda yakin ingin menghapus santri ini? Data terkait (SKS, Absensi, dll) TIDAK akan terhapus.');">
+                                   <i class="bi bi-trash"></i> Hapus
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center">Belum ada data santri.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

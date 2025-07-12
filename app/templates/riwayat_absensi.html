@@ -1,99 +1,81 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ title }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #f4f7f6; }
-        nav { margin-bottom: 2em; }
-        nav a { margin-right: 1em; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1.5em; background-color: white; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #e9ecef; }
-        .filter-form { background-color: white; padding: 1.5em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .filter-form form { display: flex; align-items: flex-end; gap: 1em; }
-    </style>
-</head>
-<body>
-    <nav>
-        <a href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.daftar_santri') }}">Daftar Santri</a>
-        <a href="{{ url_for('admin.riwayat_absensi') }}">Riwayat Absensi</a>
-        </nav>
-    
-    <h1>{{ title }}</h1>
+{% extends "layout.html" %}
 
-    <div class="filter-form">
-    <h4>Filter Data</h4>
-    <form method="GET" action="{{ url_for('admin.riwayat_absensi') }}">
-        
-        <div>
-            <label for="santri_id">Nama Santri</label><br>
-            <select name="santri_id" id="santri_id">
-                <option value="">-- Semua Santri --</option>
-                {% for s in semua_santri %}
-                <option value="{{ s.id }}" {% if s.id == santri_id %}selected{% endif %}>{{ s.nama_lengkap }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label for="status">Status Kehadiran</label><br>
-            <select name="status" id="status">
-                <option value="">-- Semua Status --</option>
-                <option value="hadir" {% if status == 'hadir' %}selected{% endif %}>Hadir</option>
-                <option value="sakit" {% if status == 'sakit' %}selected{% endif %}>Sakit</option>
-                <option value="pulang" {% if status == 'pulang' %}selected{% endif %}>Pulang</option>
-                <option value="izin" {% if status == 'izin' %}selected{% endif %}>Izin Lainnya</option>
-                <option value="alpa" {% if status == 'alpa' %}selected{% endif %}>Alpa</option>
-            </select>
-        </div>
-        <div>
-            <label for="start_date">Dari Tanggal</label><br>
-            <input type="date" name="start_date" id="start_date" value="{{ start_date_str }}">
-        </div>
-        <div>
-            <label for="end_date">Sampai Tanggal</label><br>
-            <input type="date" name="end_date" id="end_date" value="{{ end_date_str }}">
-        </div>
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+{% include 'includes/_flash_messages.html' %}
 
-        <div>
-            <button type="submit">Filter</button>
-            <a href="{{ url_for('admin.riwayat_absensi') }}">Reset</a>
-            <a href="{{ url_for('admin.export_riwayat_absensi', santri_id=santri_id, start_date=start_date_str, end_date=end_date_str, status=status) }}" 
-               style="margin-left: 1em; padding: 6px 10px; background-color: #198754; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">
-               Ekspor ke Excel
-            </a>
-        </div>
-    </form>
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Filter Data</h5>
+        <form method="GET" action="{{ url_for('admin.riwayat_absensi') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="santri_id" class="form-label">Nama Santri</label>
+                <select name="santri_id" id="santri_id" class="form-select">
+                    <option value="">-- Semua Santri --</option>
+                    {% for s in semua_santri %}
+                    <option value="{{ s.id }}" {% if s.id == santri_id %}selected{% endif %}>{{ s.nama_lengkap }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">Status</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">-- Semua --</option>
+                    <option value="hadir" {% if status == 'hadir' %}selected{% endif %}>Hadir</option>
+                    <option value="sakit" {% if status == 'sakit' %}selected{% endif %}>Sakit</option>
+                    <option value="pulang" {% if status == 'pulang' %}selected{% endif %}>Pulang</option>
+                    <option value="izin" {% if status == 'izin' %}selected{% endif %}>Izin</option>
+                    <option value="alpa" {% if status == 'alpa' %}selected{% endif %}>Alpa</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="start_date" class="form-label">Dari Tanggal</label>
+                <input type="date" name="start_date" id="start_date" value="{{ start_date_str }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label for="end_date" class="form-label">Sampai Tanggal</label>
+                <input type="date" name="end_date" id="end_date" value="{{ end_date_str }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <a href="{{ url_for('admin.riwayat_absensi') }}" class="btn btn-secondary">Reset</a>
+                <a href="{{ url_for('admin.export_riwayat_absensi', santri_id=santri_id, start_date=start_date_str, end_date=end_date_str, status=status) }}" class="btn btn-success" title="Ekspor ke Excel"><i class="bi bi-file-earmark-excel"></i></a>
+            </div>
+        </form>
+    </div>
 </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Tanggal</th>
-                <th>Nama Santri</th>
-                <th>Status</th>
-                <th>Keterangan</th>
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for absensi in absensi_list %}
-            <tr>
-                <td>{{ absensi.tanggal.strftime('%d-%m-%Y') }}</td>
-                <td>{{ absensi.santri.nama_lengkap }}</td>
-                <td>{{ absensi.status | capitalize }}</td>
-                <td>{{ absensi.keterangan }}</td>
-                <td>
-                    Edit | Hapus
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" style="text-align: center;">Tidak ada data yang cocok dengan filter.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Nama Santri</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for absensi in absensi_list %}
+                    <tr>
+                        <td>{{ absensi.tanggal.strftime('%d-%m-%Y') }}</td>
+                        <td>{{ absensi.santri.nama_lengkap }}</td>
+                        <td>{{ absensi.status | capitalize }}</td>
+                        <td>{{ absensi.keterangan or '-' }}</td>
+                        <td>
+                            </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center">Tidak ada data yang cocok dengan filter.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
