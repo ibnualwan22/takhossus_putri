@@ -68,8 +68,8 @@
                             <td class="text-center">{{ data.infractions.get(day, '') }}</td>
                         {% endfor %}
                         <td class="text-center"><b>{{ data.total }}</b></td>
-                        <td style="text-align: left;">{{ ', '.join(data.keterangan_list) }}</td>
-                        <td style="text-align: left;">{{ ', '.join(data.riyadhoh_list) }}</td>
+                        <td style="text-align: left;">{{ data.keterangan }}</td>
+                        <td style="text-align: left;">{{ data.riyadhoh }}</td>
                         <td class="text-center">{{ data.lunas_status }}</td>
                     </tr>
                     {% else %}

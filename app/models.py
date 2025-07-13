@@ -32,8 +32,14 @@ class RekapSks(db.Model):
 class RekapAbsensi(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tanggal = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), nullable=False) # hadir, sakit, izin, pulang, alpa
-    keterangan = db.Column(db.String(255))
+    
+    # Kolom baru untuk menyimpan jumlah sesi
+    jumlah_hadir = db.Column(db.Integer, nullable=False, default=4)
+    jumlah_sakit_izin = db.Column(db.Integer, nullable=False, default=0)
+    jumlah_alpa = db.Column(db.Integer, nullable=False, default=0)
+    
+    # Keterangan ini akan sama untuk satu minggu
+    keterangan_mingguan = db.Column(db.String(255), nullable=True)
     
     # Foreign Key ke tabel santri
     santri_id = db.Column(db.Integer, db.ForeignKey('santri.id'), nullable=False)
@@ -42,21 +48,25 @@ class RekapAbsensi(db.Model):
     santri = db.relationship('Santri', backref=db.backref('rekap_absensi', lazy=True))
 
     def __repr__(self):
-        return f'<Absensi {self.santri.nama_lengkap} - {self.status}>'
+        return f'<Absensi {self.santri.nama_lengkap} - {self.tanggal}>'
     
 class RekapBukuSadar(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tanggal = db.Column(db.Date, nullable=False)
-    jumlah = db.Column(db.Integer, nullable=False, default=1)
-    keterangan = db.Column(db.String(255))
-    riyadhoh = db.Column(db.String(255))
+    
+    # Kolom baru untuk jumlah pelanggaran
+    jumlah_pelanggaran = db.Column(db.Integer, nullable=False, default=1)
+    
+    # Keterangan ini akan sama untuk satu bulan
+    keterangan_bulanan = db.Column(db.String(255), nullable=True)
+    riyadhoh = db.Column(db.String(255), nullable=True)
     status_riyadhoh = db.Column(db.String(20), nullable=False, default='Belum Lunas')
-
+    
     # Foreign Key ke tabel santri
     santri_id = db.Column(db.Integer, db.ForeignKey('santri.id'), nullable=False)
-
+    
     # Relasi
     santri = db.relationship('Santri', backref=db.backref('rekap_buku_sadar', lazy=True))
 
     def __repr__(self):
-        return f'<Buku Sadar: {self.santri.nama_lengkap}>'
+        return f'<Buku Sadar: {self.santri.nama_lengkap} - {self.tanggal}>'

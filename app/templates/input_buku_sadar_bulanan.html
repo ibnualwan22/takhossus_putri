@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+{% include 'includes/_flash_messages.html' %}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h5 class="card-title mb-3">Formulir Rekap Bulanan</h5>
+        <p class="text-muted small">Pilih santri dan bulan, lalu isi jumlah pelanggaran pada tanggal yang sesuai. Kosongi atau isi 0 jika tidak ada pelanggaran.</p>
+        
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.santri.label(class="form-label") }}
+                    {{ form.santri(class="form-select") }}
+                </div>
+                <div class="col-md-6">
+                    {{ form.bulan.label(class="form-label") }}
+                    <input type="month" name="bulan" class="form-control" value="{{ form.bulan.data.strftime('%Y-%m') if form.bulan.data else '' }}" required>
+                </div>
+            </div>
+            <hr>
+            <h6>Input Jumlah Pelanggaran per Tanggal</h6>
+            <div class="row">
+                {% for day_form in form.days %}
+                <div class="col-lg-1 col-md-2 col-sm-3 col-4 mb-3">
+                    <label class="form-label fw-bold">Tgl {{ loop.index }}</label>
+                    {{ day_form.jumlah(class="form-control") }}
+                </div>
+                {% endfor %}
+            </div>
+            <hr>
+            <h6>Keterangan Umum & Sanksi</h6>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.keterangan.label(class="form-label") }}
+                    {{ form.keterangan(class="form-control") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.riyadhoh.label(class="form-label") }}
+                    {{ form.riyadhoh(class="form-control") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.status_riyadhoh.label(class="form-label") }}
+                    {{ form.status_riyadhoh(class="form-select") }}
+                </div>
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+{% endblock %}

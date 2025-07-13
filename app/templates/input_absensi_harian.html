@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+{% include 'includes/_flash_messages.html' %}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h5 class="card-title mb-3">Formulir Rekap Mingguan (Detail per Hari)</h5>
+        <p class="text-muted small">Input jumlah sesi yang tidak dihadiri untuk setiap hari aktif. Total sesi per hari adalah 4.</p>
+        
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    {{ form.santri.label(class="form-label") }}
+                    {{ form.santri(class="form-select") }}
+                </div>
+                <div class="col-md-6">
+                    {{ form.tanggal_awal_minggu.label(class="form-label") }}
+                    {{ form.tanggal_awal_minggu(class="form-control") }}
+                </div>
+            </div>
+            <hr>
+            <h6>Input Detail Kehadiran Harian</h6>
+{% for day_form in form.days %}
+<div class="row g-3 align-items-center mb-3 p-3 border rounded {% if day_form.hadir.errors %}border-danger{% endif %}">
+    <div class="col-md-2">
+        <label class="form-label fw-bold">{{ nama_hari[loop.index0] }}</label>
+        
+        {% if day_form.hadir.errors %}
+            <div class="text-danger small mt-2">
+                {{ day_form.hadir.errors[0] }}
+            </div>
+        {% endif %}
+    </div>
+    <div class="col-md-2">
+        {{ day_form.hadir.label(class="form-label") }}
+        {{ day_form.hadir(class="form-control") }}
+    </div>
+                <div class="col-md-2">
+                    {{ day_form.sakit_izin.label(class="form-label") }}
+                    {{ day_form.sakit_izin(class="form-control") }}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.alpa.label(class="form-label") }}
+                    {{ day_form.alpa(class="form-control") }}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="mb-3">
+                {{ form.keterangan.label(class="form-label") }}
+                {{ form.keterangan(class="form-control", placeholder="Cth: Sakit batuk selama 3 hari, Izin keluarga hari Senin") }}
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+{% endblock %}

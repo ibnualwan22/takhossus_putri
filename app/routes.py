@@ -2,13 +2,24 @@ import io
 import os
 import calendar
 import urllib.parse
+import locale
+try:
+    locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
+except locale.Error:
+    try:
+        # Fallback untuk lingkungan Windows
+        locale.setlocale(locale.LC_TIME, 'Indonesian_indonesia.1252')
+    except locale.Error:
+        # Jika keduanya gagal, cetak peringatan dan lanjutkan tanpa crash
+        print("Peringatan: Locale Bahasa Indonesia tidak ditemukan. Menggunakan locale default sistem.")
+        pass
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
 # 2. Pustaka Pihak Ketiga (Flask, SQLAlchemy, Pandas, dll)
 from flask import (Blueprint, render_template, redirect, url_for, 
                    flash, request, send_file)
-from sqlalchemy import extract
+from sqlalchemy import extract, func
 import pandas as pd
 import numpy as np
 
@@ -17,7 +28,7 @@ from . import db
 from .models import (Santri, SksMaster, RekapSks, RekapAbsensi, 
                      RekapBukuSadar)
 from .forms import (RekapSksForm, SantriForm, UploadExcelForm, 
-                    SksMasterForm, AbsensiForm, BukuSadarForm)
+                    SksMasterForm, RekapAbsensiHarianForm, RekapBukuSadarBulananForm)
 
 
 # 1. Buat Blueprint untuk admin
@@ -234,203 +245,314 @@ def kelola_sks():
 
 @admin_bp.route('/rekap/absensi', methods=['GET', 'POST'])
 def input_rekap_absensi():
-    form = AbsensiForm()
+    form = RekapAbsensiHarianForm()
     form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
 
     if form.validate_on_submit():
-        absensi = RekapAbsensi(
-            tanggal=form.tanggal.data,
-            santri_id=form.santri.data,
-            status=form.status.data,
-            keterangan=form.keterangan.data
-        )
-        db.session.add(absensi)
+        santri_id = form.santri.data
+        start_date = form.tanggal_awal_minggu.data
+        keterangan_mingguan = form.keterangan.data
+
+        # Hapus data lama untuk minggu tersebut
+        end_date = start_date + timedelta(days=6)
+        RekapAbsensi.query.filter(
+            RekapAbsensi.santri_id == santri_id,
+            RekapAbsensi.tanggal.between(start_date, end_date)
+        ).delete(synchronize_session=False)
+
+        # Simpan data baru untuk 6 hari aktif
+        day_index = 0
+        for i in range(7): # Loop 7 hari
+            current_date = start_date + timedelta(days=i)
+            if current_date.weekday() == 4: # Lewati hari Jumat
+                continue
+            
+            # Ambil data dari form untuk hari ini
+            day_form = form.days[day_index]
+            
+            # Hanya simpan jika ada sesi yang tidak hadir
+            if day_form.sakit_izin.data > 0 or day_form.alpa.data > 0:
+                absensi_harian = RekapAbsensi(
+                    santri_id=santri_id,
+                    tanggal=current_date,
+                    jumlah_hadir=day_form.hadir.data,
+                    jumlah_sakit_izin=day_form.sakit_izin.data,
+                    jumlah_alpa=day_form.alpa.data,
+                    keterangan_mingguan=keterangan_mingguan
+                )
+                db.session.add(absensi_harian)
+            
+            day_index += 1
+
         db.session.commit()
-        flash('Data absensi berhasil disimpan!', 'success')
+        flash('Rekap absensi mingguan berhasil disimpan!', 'success')
         return redirect(url_for('admin.input_rekap_absensi'))
+
+    # Siapkan label untuk hari
+    nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
     
-    return render_template('input_absensi.html', title="Input Rekap Absensi", form=form)
+    return render_template(
+        'input_absensi_harian.html', 
+        title="Input Rekap Absensi Harian", 
+        form=form,
+        nama_hari=nama_hari
+    )
 
 @admin_bp.route('/rekap/buku-sadar', methods=['GET', 'POST'])
 def input_buku_sadar():
-    form = BukuSadarForm()
+    form = RekapBukuSadarBulananForm()
     form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
 
     if form.validate_on_submit():
-        catatan = RekapBukuSadar(
-            tanggal=form.tanggal.data,
-            santri_id=form.santri.data,
-            jumlah=form.jumlah.data,
-            keterangan=form.keterangan.data,
-            riyadhoh=form.riyadhoh.data,
-            status_riyadhoh=form.status_riyadhoh.data # <-- TAMBAHKAN INI
-        )
-        db.session.add(catatan)
-        db.session.commit()
-        flash('Catatan Buku Sadar berhasil disimpan!', 'success')
-        return redirect(url_for('admin.input_buku_sadar'))
-    
-    return render_template('input_buku_sadar.html', title="Input Rekap Buku Sadar", form=form)
+        santri_id = form.santri.data
+        selected_month = form.bulan.data
+        
+        # --- LOGIKA BARU: UPDATE ATAU INSERT TANPA MENGHAPUS ---
 
+        # 1. Update info bulanan untuk semua record yang ada di bulan ini
+        # Ini memungkinkan admin hanya mengubah keterangan/riyadhoh/status
+        db.session.query(RekapBukuSadar).filter(
+            RekapBukuSadar.santri_id == santri_id,
+            extract('year', RekapBukuSadar.tanggal) == selected_month.year,
+            extract('month', RekapBukuSadar.tanggal) == selected_month.month
+        ).update({
+            'keterangan_bulanan': form.keterangan.data,
+            'riyadhoh': form.riyadhoh.data,
+            'status_riyadhoh': form.status_riyadhoh.data
+        }, synchronize_session=False)
+
+
+        # 2. Loop untuk setiap hari yang diinput di form
+        _, num_days = calendar.monthrange(selected_month.year, selected_month.month)
+        for i in range(num_days):
+            day_form = form.days[i]
+            jumlah_hari_ini = day_form.jumlah.data or 0
+            
+            # Hanya proses jika ada input angka
+            if jumlah_hari_ini > 0:
+                current_date = date(selected_month.year, selected_month.month, i + 1)
+                existing_record = RekapBukuSadar.query.filter_by(
+                    santri_id=santri_id,
+                    tanggal=current_date
+                ).first()
+
+                if existing_record:
+                    # UPDATE: Jika catatan sudah ada, perbarui jumlahnya
+                    existing_record.jumlah_pelanggaran = jumlah_hari_ini
+                else:
+                    # INSERT: Jika catatan belum ada, buat yang baru
+                    catatan_harian = RekapBukuSadar(
+                        santri_id=santri_id,
+                        tanggal=current_date,
+                        jumlah_pelanggaran=jumlah_hari_ini,
+                        keterangan_bulanan=form.keterangan.data,
+                        riyadhoh=form.riyadhoh.data,
+                        status_riyadhoh=form.status_riyadhoh.data
+                    )
+                    db.session.add(catatan_harian)
+
+        db.session.commit()
+        flash('Rekap Buku Sadar berhasil diperbarui!', 'success')
+        return redirect(url_for('admin.input_buku_sadar', santri_id=santri_id, bulan=selected_month.strftime('%Y-%m')))
+    
+    # Jika method GET, isi form dengan data yang sudah ada di database
+    # Ini untuk memudahkan saat me-refresh halaman atau setelah redirect
+    santri_id_get = request.args.get('santri_id', type=int)
+    bulan_get_str = request.args.get('bulan')
+    if santri_id_get and bulan_get_str:
+        bulan_get = datetime.strptime(bulan_get_str, '%Y-%m').date()
+        form.santri.data = santri_id_get
+        form.bulan.data = bulan_get
+
+        records = RekapBukuSadar.query.filter(
+            RekapBukuSadar.santri_id == santri_id_get,
+            extract('year', RekapBukuSadar.tanggal) == bulan_get.year,
+            extract('month', RekapBukuSadar.tanggal) == bulan_get.month
+        ).all()
+        
+        # Isi form dengan data yang sudah ada
+        if records:
+            form.keterangan.data = records[0].keterangan_bulanan
+            form.riyadhoh.data = records[0].riyadhoh
+            form.status_riyadhoh.data = records[0].status_riyadhoh
+            for record in records:
+                day_index = record.tanggal.day - 1
+                form.days[day_index].jumlah.data = record.jumlah_pelanggaran
+    return render_template('input_buku_sadar_bulanan.html', title="Input Rekap Buku Sadar Bulanan", form=form)
 @admin_bp.route('/riwayat/absensi')
 def riwayat_absensi():
-    # --- BAGIAN FILTER ---
-    # Ambil nilai filter dari URL (request.args)
-    q_santri_id = request.args.get('santri_id', type=int)
-    q_start_date_str = request.args.get('start_date', '')
-    q_end_date_str = request.args.get('end_date', '')
-    q_status = request.args.get('status', '')
+    # 1. FILTER (default 7 hari terakhir)
+    today = date.today()
+    # Logika untuk mencari hari Sabtu terakhir
+    start_default = today - timedelta(days=(today.weekday() + 2) % 7)
+    end_default = start_default + timedelta(days=6)
 
-    # Query dasar untuk mengambil semua data absensi
-    query = RekapAbsensi.query
+    q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
+    q_end_date_str = request.args.get('end_date', end_default.strftime('%Y-%m-%d'))
+    q_kelas = request.args.get('kelas', '')
 
-    # Terapkan filter jika ada
-    if q_santri_id:
-        query = query.filter(RekapAbsensi.santri_id == q_santri_id)
+    start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date()
+
+    # 2. AMBIL DATA
+    query = RekapAbsensi.query.join(Santri).filter(
+        RekapAbsensi.tanggal.between(start_date, end_date)
+    )
+    if q_kelas:
+        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+
+    records = query.all()
     
-    if q_start_date_str:
-        start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
-        query = query.filter(RekapAbsensi.tanggal >= start_date)
+    # 3. PROSES DATA UNTUK PIVOT
+    processed_data = defaultdict(lambda: {
+        'kelas': '',
+        'absensi': defaultdict(lambda: {'H': 4, 'I': 0, 'A': 0})
+    })
 
-    if q_end_date_str:
-        end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date()
-        query = query.filter(RekapAbsensi.tanggal <= end_date)
+    for record in records:
+        santri_name = record.santri.nama_lengkap
+        processed_data[santri_name]['kelas'] = record.santri.kelas_saat_ini
+        processed_data[santri_name]['absensi'][record.tanggal] = {
+            'H': record.jumlah_hadir,
+            'I': record.jumlah_sakit_izin,
+            'A': record.jumlah_alpa
+        }
     
-    if q_status:
-        query = query.filter(RekapAbsensi.status == q_status)
-
-    # Eksekusi query dengan urutan tanggal terbaru di atas
-    hasil_absensi = query.order_by(RekapAbsensi.tanggal.desc()).all()
-
-    # Siapkan data untuk dropdown filter santri
-    semua_santri = Santri.query.order_by(Santri.nama_lengkap).all()
+    # 4. SIAPKAN DATA UNTUK TEMPLATE
+    date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    active_dates = [d for d in date_range if d.weekday() != 4] # Hapus Jumat
 
     return render_template(
         'riwayat_absensi.html',
-        title="Riwayat Absensi Santri",
-        absensi_list=hasil_absensi,
-        semua_santri=semua_santri,
-        santri_id=q_santri_id,
-        start_date_str=q_start_date_str,
-        end_date_str=q_end_date_str,
-        status=q_status,
+        title="Laporan Detail Absensi",
+        processed_data=processed_data,
+        active_dates=active_dates,
+        q_start_date_str=q_start_date_str,
+        q_end_date_str=q_end_date_str,
+        q_kelas=q_kelas
     )
 @admin_bp.route('/riwayat/absensi/export')
 def export_riwayat_absensi():
-    today_str = date.today().strftime('%Y-%m-%d')
-    # 1. LOGIKA FILTER (SAMA PERSIS SEPERTI SEBELUMNYA)
-    q_santri_id = request.args.get('santri_id', type=int)
-    q_start_date_str = request.args.get('start_date', today_str) # <-- UBAH DI SINI
-    q_end_date_str = request.args.get('end_date', today_str)   # <-- UBAH DI SINI
-    q_status = request.args.get('status', '')
+    # 1. LOGIKA FILTER & PROSES DATA (COPY DARI RUTE riwayat_absensi)
+    today = date.today()
+    start_default = today - timedelta(days=(today.weekday() + 2) % 7)
+    end_default = start_default + timedelta(days=6)
 
-    query = RekapAbsensi.query
+    q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
+    q_end_date_str = request.args.get('end_date', end_default.strftime('%Y-%m-%d'))
+    q_kelas = request.args.get('kelas', '')
 
-    if q_santri_id:
-        query = query.filter(RekapAbsensi.santri_id == q_santri_id)
-    if q_start_date_str:
-        start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
-        query = query.filter(RekapAbsensi.tanggal >= start_date)
-    if q_end_date_str:
-        end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date()
-        query = query.filter(RekapAbsensi.tanggal <= end_date)
-    if q_status:
-        query = query.filter(RekapAbsensi.status == q_status)
+    start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date()
 
-    hasil_absensi = query.order_by(RekapAbsensi.tanggal.desc()).all()
+    query = RekapAbsensi.query.join(Santri).filter(RekapAbsensi.tanggal.between(start_date, end_date))
+    if q_kelas:
+        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    records = query.all()
+    
+    processed_data = defaultdict(lambda: {'kelas': '', 'absensi': defaultdict(lambda: {'H': 4, 'I': 0, 'A': 0})})
+    for record in records:
+        santri_name = record.santri.nama_lengkap
+        processed_data[santri_name]['kelas'] = record.santri.kelas_saat_ini
+        processed_data[santri_name]['absensi'][record.tanggal] = {'H': record.jumlah_hadir, 'I': record.jumlah_sakit_izin, 'A': record.jumlah_alpa}
+    
+    date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    active_dates = [d for d in date_range if d.weekday() != 4]
 
-    # 2. PERSIAPKAN DATA UNTUK EXCEL
+    # 2. UBAH DATA PIVOT MENJADI FORMAT DATAFRAME
     data_for_excel = []
-    for absensi in hasil_absensi:
-        data_for_excel.append({
-            'Tanggal': absensi.tanggal.strftime('%Y-%m-%d'),
-            'Nama Santri': absensi.santri.nama_lengkap,
-            'Status': absensi.status.capitalize(),
-            'Keterangan': absensi.keterangan
-        })
+    for nama, data in processed_data.items():
+        row_dict = {'NAMA': nama, 'KELAS': data['kelas']}
+        for day in active_dates:
+            row_dict[f"{day.strftime('%d/%m/%y')} - H"] = data['absensi'][day]['H']
+            row_dict[f"{day.strftime('%d/%m/%y')} - I"] = data['absensi'][day]['I']
+            row_dict[f"{day.strftime('%d/%m/%y')} - A"] = data['absensi'][day]['A']
+        data_for_excel.append(row_dict)
 
     # 3. BUAT FILE EXCEL DI MEMORI
     df = pd.DataFrame(data_for_excel)
     output = io.BytesIO()
-
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Riwayat Absensi')
-
+        df.to_excel(writer, index=False, sheet_name='Laporan Absensi')
     output.seek(0)
-
+    
     # 4. KIRIM FILE SEBAGAI UNDUHAN
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'riwayat_absensi_{date.today().strftime("%Y%m%d")}.xlsx'
+        download_name=f'laporan_absensi_{q_start_date_str}_sd_{q_end_date_str}.xlsx'
     )
 
 @admin_bp.route('/riwayat/buku-sadar')
 def riwayat_buku_sadar():
-    # --- BAGIAN FILTER ---
-    # Default: bulan ini. Jika ada filter, gunakan filter tsb.
+    # 1. LOGIKA FILTER
     today = date.today()
     q_month_str = request.args.get('month', today.strftime('%Y-%m'))
-    
     selected_month = datetime.strptime(q_month_str, '%Y-%m').date()
     
-    # Ambil semua data buku sadar untuk bulan yang dipilih
-    # dan join dengan data santri untuk bisa memfilter kelas
-    query = RekapBukuSadar.query.join(Santri).filter(
-        extract('year', RekapBukuSadar.tanggal) == selected_month.year,
-        extract('month', RekapBukuSadar.tanggal) == selected_month.month
-    )
-
-    # Terapkan filter tambahan jika ada
-    q_santri_id = request.args.get('santri_id', type=int)
     q_kelas = request.args.get('kelas', '')
 
-    if q_santri_id:
-        query = query.filter(Santri.id == q_santri_id)
+    # 2. AMBIL DAFTAR SANTRI TERLEBIH DAHULU
+    santri_query = Santri.query.order_by(Santri.nama_lengkap)
     if q_kelas:
-        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
-
-    records = query.order_by(Santri.nama_lengkap, RekapBukuSadar.tanggal).all()
+        santri_query = santri_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
     
-    # --- BAGIAN PENGOLAHAN DATA (PIVOT) ---
-    processed_data = defaultdict(lambda: {
-        'kelas': '', 
-        'infractions': defaultdict(int), 
-        'total': 0, 
-        'keterangan_list': [],
-        'riyadhoh_list': [],
-        'lunas_status': 'Lunas'
-    })
+    list_santri = santri_query.all()
 
-    for record in records:
-        santri_name = record.santri.nama_lengkap
-        day = record.tanggal.day
+    # 3. AMBIL SEMUA DATA PELANGGARAN PADA BULAN TERPILIH
+    records = RekapBukuSadar.query.filter(
+        extract('year', RekapBukuSadar.tanggal) == selected_month.year,
+        extract('month', RekapBukuSadar.tanggal) == selected_month.month
+    ).all()
+    
+    # Kelompokkan record berdasarkan santri_id untuk pencarian cepat
+    records_by_santri = defaultdict(list)
+    for r in records:
+        records_by_santri[r.santri_id].append(r)
+
+    # 4. PROSES DATA UNTUK SETIAP SANTRI DI DAFTAR
+    processed_data = {}
+    for santri in list_santri:
+        # Inisialisasi data untuk setiap santri
+        santri_data = {
+            'kelas': santri.kelas_saat_ini,
+            'infractions': defaultdict(int),
+            'total': 0,
+            'keterangan': '',
+            'riyadhoh': '',
+            'lunas_status': 'Lunas'
+        }
         
-        processed_data[santri_name]['kelas'] = record.santri.kelas_saat_ini
-        processed_data[santri_name]['infractions'][day] += record.jumlah
-        processed_data[santri_name]['total'] += record.jumlah
-        processed_data[santri_name]['keterangan_list'].append(record.keterangan or 'ALFA')
-        processed_data[santri_name]['riyadhoh_list'].append(record.riyadhoh or 'FISIK')
+        # Cek apakah santri ini punya catatan pelanggaran
+        if santri.id in records_by_santri:
+            has_unpaid = False
+            for record in records_by_santri[santri.id]:
+                day = record.tanggal.day
+                santri_data['infractions'][day] += record.jumlah_pelanggaran
+                santri_data['total'] += record.jumlah_pelanggaran
+                
+                # Ambil keterangan dari record pertama (semua sama)
+                santri_data['keterangan'] = record.keterangan_bulanan or 'ALFA'
+                santri_data['riyadhoh'] = record.riyadhoh or 'FISIK'
+                if record.status_riyadhoh == 'Belum Lunas':
+                    has_unpaid = True
+            
+            if has_unpaid:
+                santri_data['lunas_status'] = 'Belum Lunas'
+        
+        processed_data[santri.nama_lengkap] = santri_data
 
-        if record.status_riyadhoh == 'Belum Lunas':
-            processed_data[santri_name]['lunas_status'] = 'Belum Lunas'
-
-    # Menentukan jumlah hari dalam sebulan untuk header tabel
+    # 5. PERSIAPAN DATA UNTUK TEMPLATE
     _, num_days = calendar.monthrange(selected_month.year, selected_month.month)
     days_in_month = list(range(1, num_days + 1))
-    
-    # Siapkan data untuk dropdown filter
-    semua_santri = Santri.query.order_by(Santri.nama_lengkap).all()
     
     return render_template(
         'riwayat_buku_sadar.html',
         title=f"Riwayat Buku Sadar - {selected_month.strftime('%B %Y')}",
         processed_data=processed_data,
         days_in_month=days_in_month,
-        semua_santri=semua_santri,
         q_month_str=q_month_str,
-        q_santri_id=q_santri_id,
         q_kelas=q_kelas
     )
 @admin_bp.route('/riwayat/buku-sadar/export')
@@ -622,17 +744,30 @@ def laporan_ke_wali():
         end_date = date.today()
         start_date = end_date - timedelta(days=6)
 
-        # 1. Ambil & hitung rekap absensi
-        absensi = RekapAbsensi.query.filter(
+        # 1. Hitung jumlah hari aktif (bukan Jumat) dalam rentang waktu
+        active_days = 0
+        for i in range(7):
+            if (start_date + timedelta(days=i)).weekday() != 4: # Jumat adalah weekday 4
+                active_days += 1
+        
+        total_sesi_seminggu = active_days * 4
+
+        # 2. Ambil total SAKIT/IZIN dan ALPA dari database
+        rekap_absen = db.session.query(
+            func.sum(RekapAbsensi.jumlah_sakit_izin).label('total_sakit_izin'),
+            func.sum(RekapAbsensi.jumlah_alpa).label('total_alpa')
+        ).filter(
             RekapAbsensi.santri_id == santri_id,
             RekapAbsensi.tanggal.between(start_date, end_date)
-        ).all()
+        ).one()
         
-        rekap_absen = defaultdict(int)
-        for absen in absensi:
-            rekap_absen[absen.status] += 1
+        total_sakit_izin = rekap_absen.total_sakit_izin or 0
+        total_alpa = rekap_absen.total_alpa or 0
 
-        # 2. Ambil rekap SKS
+        # 3. Hitung jumlah HADIR secara manual
+        total_hadir = total_sesi_seminggu - total_sakit_izin - total_alpa
+
+        # 4. Ambil rekap SKS (ini tetap sama)
         sks_selesai = RekapSks.query.filter(
             RekapSks.santri_id == santri_id,
             RekapSks.tanggal.between(start_date, end_date)
@@ -640,16 +775,15 @@ def laporan_ke_wali():
         
         laporan_data = {
             'santri': santri,
-            'hadir': rekap_absen.get('hadir', 0),
-            'sakit': rekap_absen.get('sakit', 0),
-            'izin': rekap_absen.get('izin', 0),
-            'alpa': rekap_absen.get('alpa', 0),
+            'hadir': total_hadir,
+            'sakit_izin': total_sakit_izin,
+            'alpa': total_alpa,
             'sks_list': [rekap.sks.nama_sks for rekap in sks_selesai]
         }
         
-        # 3. Buat pesan WhatsApp
+        # 5. Buat pesan WhatsApp (ini tetap sama)
         sks_text = '\n'.join([f"- {sks}" for sks in laporan_data['sks_list']]) or "Tidak ada"
-        
+        total_sesi_pesan = laporan_data['hadir'] + laporan_data['sakit_izin'] + laporan_data['alpa']
         pesan_template = (
             f"Akademik Takhossus Putri: Assalamualaikum Wr. Wb.\n\n"
             f"Kami dari pihak Akademik Madin Takhossus Amtsilati memberitahukan kepada bapak/ibu terkait perkembangan kegiatan belajar mengajar (KBM) ananda selama 1 minggu:\n\n"
@@ -657,11 +791,10 @@ def laporan_ke_wali():
             f"Fan : *{laporan_data['santri'].kelas_saat_ini}*\n\n"
             f"Telah menyelesaikan tes mata pelajaran:\n"
             f"{sks_text}\n\n"
-            f"Dan berikut rekapan absensi dalam 1 minggu ({start_date.strftime('%d/%m')} - {end_date.strftime('%d/%m/%Y')}):\n"
-            f"Hadir : {laporan_data['hadir']}\n"
-            f"Alfa : {laporan_data['alpa']}\n"
-            f"Sakit : {laporan_data['sakit']}\n"
-            f"Izin : {laporan_data['izin']}\n\n"
+            f"Dan berikut rekapan absensi dalam 1 minggu ({start_date.strftime('%d/%m')} - {end_date.strftime('%d/%m/%Y')}), dari total {laporan_data['hadir'] + laporan_data['sakit_izin'] + laporan_data['alpa']} sesi:\n"
+            f"hadir : {laporan_data['hadir']} sesi\n"
+            f"Sakit/Izin : {laporan_data['sakit_izin']} sesi\n"
+            f"Alpa : {laporan_data['alpa']} sesi\n\n"
             f"Sekian pemberitahuan dari kami, kurang lebihnya mohon maaf dan terima kasih.\n\n"
             f"Wassalamualaikum Wr. Wb."
         )
