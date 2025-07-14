@@ -116,6 +116,7 @@ def tambah_santri():
             kelas_sekolah=form.kelas_sekolah.data,
             kamar=form.kamar.data,
             no_wa_wali=form.no_wa_wali.data,
+            kategori=form.kategori.data
         )
         db.session.add(santri_baru)
         db.session.commit()
@@ -139,7 +140,8 @@ def tambah_santri():
                     kelas_saat_ini=row.get('kelas_saat_ini', None),
                     kelas_sekolah=row.get('kelas_sekolah', None),
                     kamar=row.get('kamar', None),
-                    no_wa_wali=row.get('no_wa_wali', None)
+                    no_wa_wali=row.get('no_wa_wali', None),
+                    kategori=row.get('kategori', 'santri aktif')
                 )
                 db.session.add(santri_excel)
             
@@ -157,16 +159,35 @@ def tambah_santri():
         upload_form=upload_form  # Kirim form kedua ke template
     )
 @admin_bp.route('/santri')
-@login_required 
+@login_required
 def daftar_santri():
-    # 1. Ambil semua data santri dari database, urutkan berdasarkan nama
-    semua_santri = Santri.query.order_by(Santri.nama_lengkap).all()
-    
-    # 2. Kirim data tersebut ke template HTML
+    # Ambil nilai filter dari URL
+    q_nama = request.args.get('nama', '')
+    q_kelas = request.args.get('kelas', '')
+    q_kategori = request.args.get('kategori', '')
+
+    # Query dasar
+    query = Santri.query
+
+    # Terapkan filter jika ada nilainya
+    if q_nama:
+        query = query.filter(Santri.nama_lengkap.ilike(f'%{q_nama}%'))
+    if q_kelas:
+        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    if q_kategori:
+        query = query.filter(Santri.kategori == q_kategori)
+
+    # Eksekusi query
+    list_santri = query.order_by(Santri.nama_lengkap).all()
+
+    # Kirim kembali nilai filter ke template
     return render_template(
-        'daftar_santri.html', 
-        title="Daftar Santri Aktif", 
-        santri_list=semua_santri
+        'daftar_santri.html',
+        title="Daftar Santri",
+        santri_list=list_santri,
+        q_nama=q_nama,
+        q_kelas=q_kelas,
+        q_kategori=q_kategori
     )
 
 @admin_bp.route('/santri/hapus/<int:id>', methods=['GET', 'POST'])
@@ -205,6 +226,7 @@ def edit_santri(id):
         santri.kelas_sekolah = form.kelas_sekolah.data
         santri.kamar = form.kamar.data
         santri.no_wa_wali = form.no_wa_wali.data
+        santri.kategori = form.kategori.data
         
         db.session.commit()
         flash('Data santri berhasil diperbarui!', 'success')
@@ -781,4 +803,50 @@ def koreksi_buku_sadar(santri_id, start_date_str):
         nama_hari=nama_hari,
         santri=santri,
         start_date_str=start_date_str
+    )
+
+@admin_bp.route('/santri/export')
+@login_required
+def export_santri():
+    # LOGIKA FILTER (SAMA PERSIS DENGAN daftar_santri)
+    q_nama = request.args.get('nama', '')
+    q_kelas = request.args.get('kelas', '')
+    q_kategori = request.args.get('kategori', '')
+
+    query = Santri.query
+    if q_nama:
+        query = query.filter(Santri.nama_lengkap.ilike(f'%{q_nama}%'))
+    if q_kelas:
+        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    if q_kategori:
+        query = query.filter(Santri.kategori == q_kategori)
+    
+    list_santri = query.order_by(Santri.nama_lengkap).all()
+
+    # PERSIAPKAN DATA UNTUK EXCEL
+    data_for_excel = []
+    for santri in list_santri:
+        data_for_excel.append({
+            'Nama Lengkap': santri.nama_lengkap,
+            'Kategori': santri.kategori.title(),
+            'Kelas Halaqah': santri.kelas_saat_ini,
+            'Kamar': santri.kamar,
+            'No. WA Wali': santri.no_wa_wali,
+            'Nama Orang Tua': santri.nama_orang_tua,
+            'Alamat': santri.alamat
+        })
+    
+    # BUAT FILE EXCEL DI MEMORI
+    df = pd.DataFrame(data_for_excel)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Daftar Santri')
+    output.seek(0)
+
+    # KIRIM FILE SEBAGAI UNDUHAN
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'daftar_santri_{date.today().strftime("%Y%m%d")}.xlsx'
     )

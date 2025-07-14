@@ -27,6 +27,14 @@ class SantriForm(FlaskForm):
     kelas_sekolah = StringField('Kelas Sekolah Formal')
     kamar = StringField('Kamar')
     no_wa_wali = StringField('No. WhatsApp Wali (Contoh: 62812...)')
+    kategori = SelectField('Kategori Santri', choices=[
+        ('santri aktif', 'Santri Aktif'),
+        ('tidak aktif', 'Tidak Aktif'),
+        ('pengurus', 'Pengurus (Aktif)'),
+        ('az-zahro', 'Az-Zahro'),
+        ('mbak ndalem', 'Mbak Ndalem'),
+        ('lulusan darul lughoh', 'Lulusan Darul Lughoh')
+    ], validators=[DataRequired()])
     submit = SubmitField('Tambah Santri')
 
 class UploadExcelForm(FlaskForm):

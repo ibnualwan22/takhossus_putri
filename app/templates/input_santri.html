@@ -40,6 +40,10 @@
                         {{ form.kamar.label(class="form-label") }}
                         {{ form.kamar(class="form-control") }}
                     </div>
+                    <div class="col-md-4 mb-3">
+                        {{ form.kategori.label(class="form-label") }}
+                        {{ form.kategori(class="form-select") }}
+                    </div>
                 </div>
                 {{ form.submit(class="btn btn-primary") }}
             </form>
@@ -47,7 +51,7 @@
             <h5 class="card-title mt-4 mb-3">Atau Impor dari Excel</h5>
             <p class="card-text text-muted small">
                 Pastikan file Excel Anda memiliki kolom dengan header: 
-                <b>nama_lengkap, alamat, nama_orang_tua, no_wa_wali, nama_pembimbing, kelas_saat_ini, kamar</b>. 
+                <b>nama_lengkap, alamat, nama_orang_tua, no_wa_wali, nama_pembimbing, kelas_saat_ini, kamar, kategori</b>. 
             </p>
             <form method="POST" enctype="multipart/form-data">
                 {{ upload_form.hidden_tag() }}

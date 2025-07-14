@@ -1,40 +1,124 @@
 {% extends "layout.html" %}
 
 {% block content %}
-    <h1 class="mb-4">{{ title }}</h1>
-
-    <div class="row">
-        <div class="col-md-3 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-muted">Total Santri Aktif</h5>
-                    <p class="card-text fs-1 fw-bold">{{ jumlah_santri }}</p>
+<div class="row">
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">Total Santri Aktif</div>
+                        <div class="stat-value">{{ jumlah_santri }}</div>
+                    </div>
+                    <div class="stat-icon primary"><i class="bi bi-people"></i></div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-muted">Total Jenis SKS</h5>
-                    <p class="card-text fs-1 fw-bold">{{ jumlah_sks }}</p>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">Total Jenis SKS</div>
+                        <div class="stat-value">{{ jumlah_sks }}</div>
+                    </div>
+                    <div class="stat-icon success"><i class="bi bi-card-checklist"></i></div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-muted">Absensi Diinput Hari Ini</h5>
-                    <p class="card-text fs-1 fw-bold">{{ absen_hari_ini }}</p>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">Absensi Hari Ini</div>
+                        <div class="stat-value">{{ absen_hari_ini }}</div>
+                    </div>
+                    <div class="stat-icon warning"><i class="bi bi-calendar-check"></i></div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-4">
-    <div class="card shadow-sm">
-        <div class="card-body text-center">
-            <h5 class="card-title text-muted">Rekap Buku Sadar Minggu Ini</h5>
-            <p class="card-text fs-1 fw-bold">{{ sadar_minggu_ini }}</p>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-label">Rekap Sadar Minggu Ini</div>
+                        <div class="stat-value">{{ sadar_minggu_ini }}</div>
+                    </div>
+                    <div class="stat-icon info"><i class="bi bi-journal-bookmark"></i></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">Grafik Rekap Absensi Mingguan</h3>
+            </div>
+            <div class="chart-body">
+                <canvas id="attendanceChart" style="height: 350px; width: 100%;"></canvas>
+            </div>
+        </div>
     </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Inisialisasi Chart.js di sini
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar', // Mengubah menjadi bar chart agar lebih jelas
+        data: {
+            // Data untuk chart, nanti kita akan isi dari backend
+            labels: ['Sabtu', 'Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis'],
+            datasets: [{
+                label: 'Alpa',
+                data: [2, 1, 3, 0, 1, 4], // Contoh data
+                backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                borderColor: 'rgba(239, 68, 68, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Sakit/Izin',
+                data: [1, 0, 2, 1, 3, 1], // Contoh data
+                backgroundColor: 'rgba(245, 158, 11, 0.6)',
+                borderColor: 'rgba(245, 158, 11, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

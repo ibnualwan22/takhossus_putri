@@ -1,8 +1,44 @@
 {% extends "layout.html" %}
 
 {% block content %}
-    <h1 class="mb-4">{{ title }}</h1>
+     <h1 class="mb-4">{{ title }}</h1>
+    {% include 'includes/_flash_messages.html' %}
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Filter Data Santri</h5>
+            <form method="GET" action="{{ url_for('admin.daftar_santri') }}" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="nama" class="form-label">Nama Santri</label>
+                    <input type="text" name="nama" id="nama" class="form-control" value="{{ q_nama or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="kelas" class="form-label">Kelas Halaqah</label>
+                    <input type="text" name="kelas" id="kelas" class="form-control" value="{{ q_kelas or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="kategori" class="form-label">Kategori</label>
+                    <select name="kategori" id="kategori" class="form-select">
+                        <option value="">-- Semua Kategori --</option>
+                        <option value="santri aktif" {% if q_kategori == 'santri aktif' %}selected{% endif %}>Santri Aktif</option>
+                        <option value="tidak aktif" {% if q_kategori == 'tidak aktif' %}selected{% endif %}>Tidak Aktif</option>
+                        <option value="pengurus" {% if q_kategori == 'pengurus' %}selected{% endif %}>Pengurus (Aktif)</option>
+                        <option value="az-zahro" {% if q_kategori == 'az-zahro' %}selected{% endif %}>Az-Zahro</option>
+                        <option value="mbak ndalem" {% if q_kategori == 'mbak ndalem' %}selected{% endif %}>Mbak Ndalem</option>
+                        <option value="lulusan darul lughoh" {% if q_kategori == 'lulusan darul lughoh' %}selected{% endif %}>Lulusan Darul Lughoh</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                             <a href="{{ url_for('admin.daftar_santri') }}" class="btn btn-secondary">Reset</a>
+    
+                             <a href="{{ url_for('admin.export_santri', nama=q_nama, kelas=q_kelas, kategori=q_kategori) }}" class="btn btn-success" title="Ekspor ke Excel">
+                 <i class="bi bi-file-earmark-excel"></i>
+                     </a>
+                    </div>
+            </form>
+        </div>
+    </div>
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="table-responsive">
@@ -12,8 +48,8 @@
                             <th>No.</th>
                             <th>Nama Lengkap</th>
                             <th>Kamar</th>
-                            <th>Kelas Halaqah</th>
-                            <th>No. WA Wali</th>
+                            <th>Kelas Saat Ini</th>
+                            <th>Kategori</th> <th>No. WA Wali</th>
                             <th style="width: 10%;">Aksi</th>
                         </tr>
                     </thead>
@@ -24,7 +60,7 @@
                             <td>{{ santri.nama_lengkap }}</td>
                             <td>{{ santri.kamar or '-' }}</td>
                             <td>{{ santri.kelas_saat_ini or '-' }}</td>
-                            <td>{{ santri.no_wa_wali or '-' }}</td>
+                            <td>{{ santri.kategori | capitalize }}</td> <td>{{ santri.no_wa_wali or '-' }}</td>
                             <td>
                                 <a href="{{ url_for('admin.edit_santri', id=santri.id) }}" class="btn btn-warning btn-sm">
                                     <i class="bi bi-pencil-square"></i> Edit
