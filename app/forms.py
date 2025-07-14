@@ -1,10 +1,15 @@
 # app/forms.py
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed 
-from wtforms import DateField, SelectField, SubmitField, StringField, TextAreaField, IntegerField
+from wtforms import DateField, SelectField, SubmitField, StringField, TextAreaField, IntegerField, PasswordField
 from wtforms.validators import DataRequired, ValidationError
 from .models import Santri, SksMaster
 from wtforms import Form as NoCsrfForm, FieldList, FormField
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Log In')
 
 class RekapSksForm(FlaskForm):
     tanggal = DateField('Tanggal', validators=[DataRequired()])
@@ -37,26 +42,7 @@ class UploadExcelForm(FlaskForm):
 class SksMasterForm(FlaskForm):
     nama_sks = StringField('Nama SKS', validators=[DataRequired()])
     submit_manual = SubmitField('Tambah SKS')
-
-class PelanggaranHarianForm(NoCsrfForm):
-    jumlah = IntegerField('Jumlah', default=0)
-
-# Form utama untuk rekap bulanan
-class RekapBukuSadarBulananForm(FlaskForm):
-    santri = SelectField('Nama Santri', coerce=int, validators=[DataRequired()])
-    bulan = DateField('Pilih Bulan dan Tahun', format='%Y-%m', validators=[DataRequired()])
-
-    # Ini akan membuat field input sebanyak hari dalam sebulan (maks 31)
-    days = FieldList(FormField(PelanggaranHarianForm), min_entries=31, max_entries=31)
-
-    keterangan = StringField('Keterangan Umum Bulanan')
-    riyadhoh = StringField('Riyadhoh / Sanksi')
-    status_riyadhoh = SelectField(
-        'Status Riyadhoh',
-        choices=[('Belum Lunas', 'Belum Lunas'), ('Lunas', 'Lunas')],
-        validators=[DataRequired()]
-    )
-    submit = SubmitField('Simpan Rekap Sebulan')
+    
 class AbsensiHarianForm(NoCsrfForm):
     hadir = IntegerField('Hadir', default=4)
     sakit_izin = IntegerField('Sakit/Izin', default=0)
@@ -93,3 +79,16 @@ class RekapAbsensiHarianForm(FlaskForm):
                 form_valid = False
         
         return form_valid
+    
+class KoreksiBukuSadarForm(FlaskForm):
+    # FieldList untuk 6 hari aktif
+    days = FieldList(FormField(AbsensiHarianForm), min_entries=6, max_entries=6)
+    
+    keterangan = StringField('Keterangan Umum Mingguan')
+    riyadhoh = StringField('Riyadhoh / Sanksi')
+    status_lunas = SelectField(
+        'Status Lunas',
+        choices=[('Belum Lunas', 'Belum Lunas'), ('Lunas', 'Lunas')],
+        validators=[DataRequired()]
+    )
+    submit = SubmitField('Simpan Koreksi')

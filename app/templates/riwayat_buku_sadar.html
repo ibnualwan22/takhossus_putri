@@ -2,36 +2,23 @@
 
 {% block content %}
 <h1 class="mb-4">{{ title }}</h1>
-<div class="d-flex justify-content-between align-items-center">
-    <p class="text-muted">Laporan ini adalah ringkasan bulanan. Untuk mengubah data, kunjungi halaman <a href="{{ url_for('admin.list_riwayat_buku_sadar') }}">Daftar Catatan</a>.</p>
-</div>
-
+<p class="text-muted">Menampilkan jumlah alpa per hari. Klik "Koreksi" untuk mengubah jumlah alpa atau menambah info mingguan.</p>
 
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <h5 class="card-title">Filter Laporan</h5>
         <form method="GET" action="{{ url_for('admin.riwayat_buku_sadar') }}" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label for="month" class="form-label">Bulan</label>
-                <input type="month" name="month" id="month" value="{{ q_month_str }}" class="form-control">
+            <div class="col-md-4">
+                <label for="start_date" class="form-label">Pilih Hari Sabtu di Minggu Tersebut</label>
+                <input type="date" name="start_date" id="start_date" value="{{ start_date_str }}" class="form-control">
             </div>
-            <div class="col-md-3">
-                <label for="santri_id" class="form-label">Nama Santri</label>
-                <select name="santri_id" id="santri_id" class="form-select">
-                    <option value="">-- Semua Santri --</option>
-                    {% for s in semua_santri %}
-                    <option value="{{ s.id }}" {% if s.id == q_santri_id %}selected{% endif %}>{{ s.nama_lengkap }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="kelas" class="form-label">Nama Kelas</label>
                 <input type="text" name="kelas" id="kelas" value="{{ q_kelas or '' }}" class="form-control">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <button type="submit" class="btn btn-primary">Filter</button>
                 <a href="{{ url_for('admin.riwayat_buku_sadar') }}" class="btn btn-secondary">Reset</a>
-                <a href="{{ url_for('admin.export_riwayat_buku_sadar', month=q_month_str, santri_id=q_santri_id, kelas=q_kelas) }}" class="btn btn-success" title="Ekspor ke Excel"><i class="bi bi-file-earmark-excel"></i></a>
             </div>
         </form>
     </div>
@@ -40,41 +27,40 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered" style="font-size: 12px;">
-                <thead class="text-center">
+            <table class="table table-bordered text-center" style="font-size: 12px;">
+                <thead class="align-middle">
                     <tr>
-                        <th rowspan="2" class="align-middle">NO</th>
-                        <th rowspan="2" class="align-middle">NAMA</th>
-                        <th rowspan="2" class="align-middle">KELAS</th>
-                        <th colspan="{{ days_in_month|length }}">TANGGAL</th>
-                        <th rowspan="2" class="align-middle">TOTAL</th>
-                        <th rowspan="2" class="align-middle">KETERANGAN</th>
-                        <th rowspan="2" class="align-middle">RIYADHOH</th>
-                        <th rowspan="2" class="align-middle">LUNAS</th>
-                    </tr>
-                    <tr>
-                        {% for day in days_in_month %}
-                        <th>{{ day }}</th>
+                        <th rowspan="2">NO</th>
+                        <th rowspan="2">NAMA</th>
+                        <th rowspan="2">KELAS</th>
+                        {% for day in active_dates %}
+                        <th>{{ day.strftime('%a, %d/%m') }}</th>
                         {% endfor %}
+                        <th rowspan="2">TOTAL ALPA</th>
+                        <th rowspan="2">KETERANGAN</th>
+                        <th rowspan="2">RIYADHOH</th>
+                        <th rowspan="2">STATUS</th>
+                        <th rowspan="2">AKSI</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for nama, data in processed_data.items() %}
                     <tr>
-                        <td class="text-center">{{ loop.index }}</td>
+                        <td>{{ loop.index }}</td>
                         <td style="text-align: left;">{{ nama }}</td>
-                        <td class="text-center">{{ data.kelas }}</td>
-                        {% for day in days_in_month %}
-                            <td class="text-center">{{ data.infractions.get(day, '') }}</td>
+                        <td>{{ data.kelas }}</td>
+                        {% for day in active_dates %}
+                            <td>{{ data.alpa_harian.get(day, 0) }}</td>
                         {% endfor %}
-                        <td class="text-center"><b>{{ data.total }}</b></td>
-                        <td style="text-align: left;">{{ data.keterangan }}</td>
-                        <td style="text-align: left;">{{ data.riyadhoh }}</td>
-                        <td class="text-center">{{ data.lunas_status }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="{{ 7 + days_in_month|length }}" class="text-center p-4">Tidak ada data untuk filter ini.</td>
+                        <td><b>{{ data.total_alpa }}</b></td>
+                        <td>{{ data.keterangan }}</td>
+                        <td>{{ data.riyadhoh }}</td>
+                        <td>{{ data.status_lunas }}</td>
+                        <td>
+                            <a href="{{ url_for('admin.koreksi_buku_sadar', santri_id=data.id, start_date_str=start_date_str) }}" class="btn btn-warning btn-sm">
+                                <i class="bi bi-pencil-square"></i> Koreksi
+                            </a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

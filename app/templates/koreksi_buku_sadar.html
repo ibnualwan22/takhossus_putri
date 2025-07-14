@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-2">{{ title }}</h1>
+<p class="text-muted">Periode: {{ start_date_str }}</p>
+<a href="{{ url_for('admin.riwayat_buku_sadar') }}" class="btn btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Kembali ke Laporan</a>
+{% include 'includes/_flash_messages.html' %}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            <h5>Koreksi Absensi Harian</h5>
+            <p class="small text-muted">Ubah jumlah alpa jika ada yang lolos dari absensi reguler. Pastikan total sesi per hari sesuai (Selasa: 2, Hari lain: 4).</p>
+            {% for day_form in form.days %}
+            <div class="row g-3 align-items-center mb-3 p-2 border rounded">
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">{{ nama_hari[loop.index0] }}</label>
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.hadir.label(class="form-label") }}
+                    {{ day_form.hadir(class="form-control") }}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.sakit_izin.label(class="form-label") }}
+                    {{ day_form.sakit_izin(class="form-control") }}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.alpa.label(class="form-label") }}
+                    {{ day_form.alpa(class="form-control") }}
+                </div>
+            </div>
+            {% endfor %}
+            <hr>
+            <h5>Data Pelengkap Mingguan</h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.keterangan.label(class="form-label") }}
+                    {{ form.keterangan(class="form-control") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.riyadhoh.label(class="form-label") }}
+                    {{ form.riyadhoh(class="form-control") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.status_lunas.label(class="form-label") }}
+                    {{ form.status_lunas(class="form-select") }}
+                </div>
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+{% endblock %}

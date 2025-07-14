@@ -74,11 +74,6 @@
                     <i class="bi bi-person-check me-2"></i> Input Rekap Absensi
                 </a>
             </li>
-            <li>
-                <a href="{{ url_for('admin.input_buku_sadar') }}" class="nav-link">
-                    <i class="bi bi-journal-bookmark me-2"></i> Input Buku Sadar
-                </a>
-            </li>
             <hr>
             <small class="text-secondary ps-3 mb-1">LAPORAN</small>
             <li>
@@ -103,7 +98,16 @@
             </li>
         </ul>
         <hr>
+        <div class="dropdown">
+            <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-person-circle fs-4 me-2"></i>
+                <strong>Admin</strong>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
+                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Sign out</a></li>
+            </ul>
         </div>
+    </div>
 
     <main class="content">
         {% block content %}{% endblock %}
