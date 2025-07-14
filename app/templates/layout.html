@@ -569,6 +569,50 @@
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
     background-color: #93c5fd; /* Warna saat cursor di atas scrollbar */
 }
+.stat-card-v2 {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stat-card-v2:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-card-v2 .stat-info .stat-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.stat-card-v2 .stat-info .stat-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.stat-card-v2 .stat-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+}
+
+.stat-card-v2 .icon-primary { background-color: rgba(8, 145, 178, 0.1); color: var(--primary-dark); }
+.stat-card-v2 .icon-success { background-color: rgba(16, 185, 129, 0.1); color: var(--success); }
+.stat-card-v2 .icon-warning { background-color: rgba(245, 158, 11, 0.1); color: var(--warning); }
+.stat-card-v2 .icon-info { background-color: rgba(99, 102, 241, 0.1); color: #6366f1; }
     </style>
 </head>
 <body>

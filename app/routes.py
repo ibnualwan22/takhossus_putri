@@ -1,5 +1,6 @@
 import io
 import os
+import json
 import calendar
 import urllib.parse
 import locale
@@ -39,30 +40,79 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 @admin_bp.route('/dashboard')
 @login_required
 def admin_dashboard():
-    # 1. Hitung jumlah santri aktif
+    # --- Statistik Kartu (Tidak berubah) ---
     jumlah_santri = Santri.query.count()
-
-    # 2. Hitung jumlah SKS yang terdaftar
     jumlah_sks = SksMaster.query.count()
-
-    # PASTIKAN BARIS INI ADA
     today = date.today()
-
-    # 3. Hitung jumlah absensi yang diinput HARI INI
     absen_hari_ini = RekapAbsensi.query.filter_by(tanggal=today).count()
-
-    # 4. Hitung jumlah rekap buku sadar yang dibuat untuk MINGGU INI
     start_of_week = today - timedelta(days=(today.weekday() + 2) % 7)
     sadar_minggu_ini = RekapBukuSadar.query.filter_by(tanggal_awal_minggu=start_of_week).count()
 
-    # Kirim semua data statistik ke template
+    # --- LOGIKA GRAFIK DENGAN PERBAIKAN ---
+    
+    # 1. Data Mingguan
+    week_labels = []
+    week_hadir = []
+    week_izin = []
+    week_alpa = []
+    for i in range(7):
+        day = start_of_week + timedelta(days=i)
+        if day.weekday() == 4: continue
+        
+        week_labels.append(day.strftime('%a'))
+        daily_stats = db.session.query(
+            func.sum(RekapAbsensi.jumlah_hadir).label('total_hadir'),
+            func.sum(RekapAbsensi.jumlah_sakit_izin).label('total_sakit_izin'),
+            func.sum(RekapAbsensi.jumlah_alpa).label('total_alpa')
+        ).filter(RekapAbsensi.tanggal == day).one()
+        
+        # UBAH MENJADI INT() DI SINI
+        week_hadir.append(int(daily_stats.total_hadir or 0))
+        week_izin.append(int(daily_stats.total_sakit_izin or 0))
+        week_alpa.append(int(daily_stats.total_alpa or 0))
+
+    # 2. Data Bulanan
+    month_labels = []
+    month_hadir = []
+    month_izin = []
+    month_alpa = []
+    first_day_of_month = today.replace(day=1)
+    _, last_day_num = calendar.monthrange(today.year, today.month)
+    last_day_of_month = today.replace(day=last_day_num)
+    
+    current_saturday = first_day_of_month - timedelta(days=(first_day_of_month.weekday() + 2) % 7)
+    week_num = 1
+    while current_saturday <= last_day_of_month:
+        week_end = current_saturday + timedelta(days=6)
+        month_labels.append(f"Minggu {week_num}")
+
+        weekly_stats = db.session.query(
+            func.sum(RekapAbsensi.jumlah_hadir).label('total_hadir'),
+            func.sum(RekapAbsensi.jumlah_sakit_izin).label('total_sakit_izin'),
+            func.sum(RekapAbsensi.jumlah_alpa).label('total_alpa')
+        ).filter(RekapAbsensi.tanggal.between(current_saturday, week_end)).one()
+        
+        # UBAH MENJADI INT() DI SINI JUGA
+        month_hadir.append(int(weekly_stats.total_hadir or 0))
+        month_izin.append(int(weekly_stats.total_sakit_izin or 0))
+        month_alpa.append(int(weekly_stats.total_alpa or 0))
+
+        current_saturday += timedelta(weeks=1)
+        week_num += 1
+
+    chart_data = {
+        'week': {'labels': week_labels, 'hadir': week_hadir, 'izin': week_izin, 'alpa': week_alpa},
+        'month': {'labels': month_labels, 'hadir': month_hadir, 'izin': month_izin, 'alpa': month_alpa}
+    }
+
     return render_template(
         'admin_dashboard.html',
         title="Dashboard Admin",
         jumlah_santri=jumlah_santri,
         jumlah_sks=jumlah_sks,
         absen_hari_ini=absen_hari_ini,
-        sadar_minggu_ini=sadar_minggu_ini
+        sadar_minggu_ini=sadar_minggu_ini,
+        chart_data_json=json.dumps(chart_data)
     )
 
 # Tambahkan juga rute ini agar /admin langsung mengarah ke dashboard

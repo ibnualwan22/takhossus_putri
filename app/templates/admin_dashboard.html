@@ -3,66 +3,62 @@
 {% block content %}
 <div class="row">
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card stat-card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-label">Total Santri Aktif</div>
-                        <div class="stat-value">{{ jumlah_santri }}</div>
-                    </div>
-                    <div class="stat-icon primary"><i class="bi bi-people"></i></div>
-                </div>
+        <div class="stat-card-v2">
+            <div class="stat-info">
+                <div class="stat-label">Total Santri Aktif</div>
+                <div class="stat-value">{{ jumlah_santri }}</div>
+            </div>
+            <div class="stat-icon-wrapper icon-primary">
+                <i class="bi bi-people-fill"></i>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card stat-card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-label">Total Jenis SKS</div>
-                        <div class="stat-value">{{ jumlah_sks }}</div>
-                    </div>
-                    <div class="stat-icon success"><i class="bi bi-card-checklist"></i></div>
-                </div>
+        <div class="stat-card-v2">
+            <div class="stat-info">
+                <div class="stat-label">Total Jenis SKS</div>
+                <div class="stat-value">{{ jumlah_sks }}</div>
+            </div>
+            <div class="stat-icon-wrapper icon-success">
+                <i class="bi bi-card-checklist"></i>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card stat-card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-label">Absensi Hari Ini</div>
-                        <div class="stat-value">{{ absen_hari_ini }}</div>
-                    </div>
-                    <div class="stat-icon warning"><i class="bi bi-calendar-check"></i></div>
-                </div>
+        <div class="stat-card-v2">
+            <div class="stat-info">
+                <div class="stat-label">Absensi Hari Ini</div>
+                <div class="stat-value">{{ absen_hari_ini }}</div>
+            </div>
+            <div class="stat-icon-wrapper icon-warning">
+                <i class="bi bi-calendar-check-fill"></i>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6 mb-4">
-        <div class="card stat-card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-label">Rekap Sadar Minggu Ini</div>
-                        <div class="stat-value">{{ sadar_minggu_ini }}</div>
-                    </div>
-                    <div class="stat-icon info"><i class="bi bi-journal-bookmark"></i></div>
-                </div>
+        <div class="stat-card-v2">
+            <div class="stat-info">
+                <div class="stat-label">Rekap Sadar Minggu Ini</div>
+                <div class="stat-value">{{ sadar_minggu_ini }}</div>
+            </div>
+            <div class="stat-icon-wrapper icon-info">
+                <i class="bi bi-journal-bookmark-fill"></i>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
+<div class="row mt-4">
     <div class="col-12">
-        <div class="card chart-card">
-            <div class="chart-header">
-                <h3 class="chart-title">Grafik Rekap Absensi Mingguan</h3>
+        <div class="card shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Grafik Rekap Absensi</h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" onclick="updateChart('week')">Mingguan</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="updateChart('month')">Bulanan</button>
+                </div>
             </div>
-            <div class="chart-body">
+            <div class="card-body">
                 <canvas id="attendanceChart" style="height: 350px; width: 100%;"></canvas>
             </div>
         </div>
@@ -70,55 +66,60 @@
 </div>
 {% endblock %}
 
+
 {% block scripts %}
 <script>
-    // Inisialisasi Chart.js di sini
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = JSON.parse('{{ chart_data_json | safe }}');
     const ctx = document.getElementById('attendanceChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar', // Mengubah menjadi bar chart agar lebih jelas
+    
+    const attendanceChart = new Chart(ctx, {
+        type: 'bar',
         data: {
-            // Data untuk chart, nanti kita akan isi dari backend
-            labels: ['Sabtu', 'Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis'],
-            datasets: [{
-                label: 'Alpa',
-                data: [2, 1, 3, 0, 1, 4], // Contoh data
-                backgroundColor: 'rgba(239, 68, 68, 0.6)',
-                borderColor: 'rgba(239, 68, 68, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Sakit/Izin',
-                data: [1, 0, 2, 1, 3, 1], // Contoh data
-                backgroundColor: 'rgba(245, 158, 11, 0.6)',
-                borderColor: 'rgba(245, 158, 11, 1)',
-                borderWidth: 1
-            }]
+            labels: chartData.week.labels,
+            datasets: [
+                {
+                    label: 'Hadir',
+                    data: chartData.week.hadir,
+                    backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Sakit/Izin',
+                    data: chartData.week.izin,
+                    backgroundColor: 'rgba(245, 158, 11, 0.7)',
+                    borderColor: 'rgba(245, 158, 11, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Alpa',
+                    data: chartData.week.alpa,
+                    backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                }
-            }
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            plugins: { legend: { position: 'top' } }
         }
     });
+
+    window.updateChart = function(period) {
+        const newData = chartData[period];
+        attendanceChart.data.labels = newData.labels;
+        attendanceChart.data.datasets[0].data = newData.hadir;
+        attendanceChart.data.datasets[1].data = newData.izin;
+        attendanceChart.data.datasets[2].data = newData.alpa;
+        attendanceChart.update();
+
+        document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+    }
+});
 </script>
 {% endblock %}
