@@ -2,7 +2,6 @@
 
 {% block content %}
      <h1 class="mb-4">{{ title }}</h1>
-    {% include 'includes/_flash_messages.html' %}
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
@@ -13,7 +12,7 @@
                     <input type="text" name="nama" id="nama" class="form-control" value="{{ q_nama or '' }}">
                 </div>
                 <div class="col-md-3">
-                    <label for="kelas" class="form-label">Kelas Halaqah</label>
+                    <label for="kelas" class="form-label">Kelas Ngaji</label>
                     <input type="text" name="kelas" id="kelas" class="form-control" value="{{ q_kelas or '' }}">
                 </div>
                 <div class="col-md-3">

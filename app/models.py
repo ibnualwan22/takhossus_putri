@@ -79,6 +79,7 @@ class RekapBukuSadar(db.Model):
     keterangan = db.Column(db.String(255), nullable=True)
     riyadhoh = db.Column(db.String(255), nullable=True)
     status_lunas = db.Column(db.String(20), nullable=False, default='Belum Lunas')
+    santri = db.relationship('Santri', backref=db.backref('rekap_buku_sadar', lazy=True))
 
     # Membuat constraint agar setiap santri hanya punya satu rekap per minggu
     __table_args__ = (db.UniqueConstraint('santri_id', 'tanggal_awal_minggu', name='_santri_minggu_uc'),)
