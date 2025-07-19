@@ -356,8 +356,7 @@ def input_rekap_absensi():
             day_form = form.days[day_index]
             
             # Hanya simpan jika ada sesi yang tidak hadir
-            if day_form.sakit_izin.data > 0 or day_form.alpa.data > 0:
-                absensi_harian = RekapAbsensi(
+            absensi_harian = RekapAbsensi(
                     santri_id=santri_id,
                     tanggal=current_date,
                     jumlah_hadir=day_form.hadir.data,
@@ -365,7 +364,7 @@ def input_rekap_absensi():
                     jumlah_alpa=day_form.alpa.data,
                     keterangan_mingguan=keterangan_mingguan
                 )
-                db.session.add(absensi_harian)
+            db.session.add(absensi_harian)
             
             day_index += 1
 
@@ -386,7 +385,7 @@ def input_rekap_absensi():
 @admin_bp.route('/riwayat/absensi')
 @login_required
 def riwayat_absensi():
-    # 1. LOGIKA FILTER (default 7 hari terakhir)
+    # 1. LOGIKA FILTER (default 7 hari terakhir, dari Sabtu)
     today = date.today()
     start_default = today - timedelta(days=(today.weekday() + 2) % 7)
     end_default = start_default + timedelta(days=6)
@@ -405,7 +404,7 @@ def riwayat_absensi():
     
     list_santri = santri_query.all()
 
-    # 3. AMBIL SEMUA DATA ABSENSI PADA RENTANG TANGGAL TERPILIH
+    # 3. AMBIL SEMUA DATA ABSENSI YANG RELEVAN
     records = RekapAbsensi.query.filter(
         RekapAbsensi.tanggal.between(start_date, end_date)
     ).all()
@@ -415,22 +414,15 @@ def riwayat_absensi():
     for r in records:
         records_by_santri[r.santri_id].append(r)
 
-    # 4. PROSES DATA UNTUK SETIAP SANTRI DI DAFTAR
+    # 4. PROSES DATA UNTUK SETIAP SANTRI
     processed_data = {}
     for santri in list_santri:
         # Inisialisasi data untuk setiap santri
         santri_data = {
             'kelas': santri.kelas_saat_ini,
-            'absensi': defaultdict(lambda: {'H': 4, 'I': 0, 'A': 0}) # Default hadir 4 sesi
+            'absensi': defaultdict(dict) # Mulai dengan dictionary kosong
         }
         
-        # Atur default untuk hari Selasa menjadi 2 sesi
-        for day_offset in range((end_date - start_date).days + 1):
-            current_day = start_date + timedelta(days=day_offset)
-            if current_day.weekday() == 1: # Selasa adalah weekday 1 di Python (jika Senin=0)
-                 santri_data['absensi'][current_day] = {'H': 2, 'I': 0, 'A': 0}
-
-
         # Cek apakah santri ini punya catatan absensi
         if santri.id in records_by_santri:
             for record in records_by_santri[santri.id]:

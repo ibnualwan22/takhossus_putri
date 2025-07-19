@@ -50,23 +50,24 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for nama, data in processed_data.items() %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td style="text-align: left;">{{ nama }}</td>
-                        <td>{{ data.kelas }}</td>
-                        {% for day in active_dates %}
-                            <td>{{ data.absensi[day]['H'] }}</td>
-                            <td>{{ data.absensi[day]['I'] }}</td>
-                            <td>{{ data.absensi[day]['A'] }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="{{ 3 + (active_dates|length * 3) }}" class="p-4">Tidak ada data untuk filter ini.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
+    {% for nama, data in processed_data.items() %}
+    <tr>
+        <td>{{ loop.index }}</td>
+        <td style="text-align: left;">{{ nama }}</td>
+        <td>{{ data.kelas }}</td>
+        {% for day in active_dates %}
+            {% set daily_data = data.absensi.get(day) %}
+            <td>{{ daily_data.H if daily_data else '0' }}</td>
+            <td>{{ daily_data.I if daily_data else '0' }}</td>
+            <td>{{ daily_data.A if daily_data else '0' }}</td>
+        {% endfor %}
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="{{ 3 + (active_dates|length * 3) }}" class="p-4">Tidak ada data untuk filter ini.</td>
+    </tr>
+    {% endfor %}
+</tbody>
             </table>
         </div>
         <div class="mt-3 small text-muted">
