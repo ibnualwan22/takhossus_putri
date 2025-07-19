@@ -7,7 +7,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True)
     password_hash = db.Column(db.String(256))
-    # Nanti kita bisa tambahkan kolom 'role' ('admin' atau 'wali')
+    role = db.Column(db.String(20), nullable=False, default='admin') # Kolom role sudah ada, bagus!
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -30,58 +30,60 @@ class Santri(db.Model):
     no_wa_wali = db.Column(db.String(20), nullable=True)
     kategori = db.Column(db.String(50), nullable=False, default='santri aktif')
 
+    # Relasi dua arah ke tabel anak
+    rekap_sks = db.relationship('RekapSks', back_populates='santri', cascade="all, delete-orphan")
+    rekap_absensi = db.relationship('RekapAbsensi', back_populates='santri', cascade="all, delete-orphan")
+    rekap_buku_sadar = db.relationship('RekapBukuSadar', back_populates='santri', cascade="all, delete-orphan")
+
     def __repr__(self):
         return f'<Santri {self.nama_lengkap}>'
 
 class SksMaster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nama_sks = db.Column(db.String(150), unique=True, nullable=False)
+    # Tambahkan relasi balik ke RekapSks
+    rekap_sks = db.relationship('RekapSks', backref='sks_master')
 
 class RekapSks(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tanggal = db.Column(db.Date, nullable=False)
-    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id'), nullable=False)
+    
+    # --- PERBAIKAN DI SINI ---
+    # Cukup satu definisi santri_id, gabungkan ondelete='CASCADE'
+    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
     sks_id = db.Column(db.Integer, db.ForeignKey('sks_master.id'), nullable=False)
 
-    # Relasi untuk mempermudah query
-    santri = db.relationship('Santri', backref=db.backref('rekap_sks', lazy=True))
-    sks = db.relationship('SksMaster', backref=db.backref('rekap_sks', lazy=True))
+    # Definisikan relasi dua arah
+    santri = db.relationship('Santri', back_populates='rekap_sks')
 
 class RekapAbsensi(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tanggal = db.Column(db.Date, nullable=False)
-    
-    # Kolom baru untuk menyimpan jumlah sesi
     jumlah_hadir = db.Column(db.Integer, nullable=False, default=4)
     jumlah_sakit_izin = db.Column(db.Integer, nullable=False, default=0)
     jumlah_alpa = db.Column(db.Integer, nullable=False, default=0)
-    
-    # Keterangan ini akan sama untuk satu minggu
     keterangan_mingguan = db.Column(db.String(255), nullable=True)
     
-    # Foreign Key ke tabel santri
-    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id'), nullable=False)
+    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
+    santri = db.relationship('Santri', back_populates='rekap_absensi')
     
-    # Relasi untuk mempermudah query
-    santri = db.relationship('Santri', backref=db.backref('rekap_absensi', lazy=True))
-
     def __repr__(self):
         return f'<Absensi {self.santri.nama_lengkap} - {self.tanggal}>'
     
 class RekapBukuSadar(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
-    # Penanda unik untuk rekap mingguan per santri
-    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id'), nullable=False)
     tanggal_awal_minggu = db.Column(db.Date, nullable=False)
-
-    # Kolom untuk data pelengkap mingguan
     keterangan = db.Column(db.String(255), nullable=True)
     riyadhoh = db.Column(db.String(255), nullable=True)
     status_lunas = db.Column(db.String(20), nullable=False, default='Belum Lunas')
-    santri = db.relationship('Santri', backref=db.backref('rekap_buku_sadar', lazy=True))
 
-    # Membuat constraint agar setiap santri hanya punya satu rekap per minggu
+    # --- PERBAIKAN DI SINI ---
+    # Cukup satu definisi santri_id, gabungkan ondelete='CASCADE'
+    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
+    
+    # Definisikan relasi dua arah
+    santri = db.relationship('Santri', back_populates='rekap_buku_sadar')
+
     __table_args__ = (db.UniqueConstraint('santri_id', 'tanggal_awal_minggu', name='_santri_minggu_uc'),)
 
     def __repr__(self):

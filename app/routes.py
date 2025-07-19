@@ -177,27 +177,45 @@ def tambah_santri():
     if upload_form.submit_upload.data and upload_form.validate_on_submit():
         file = upload_form.file.data
         try:
-            # Baca file excel
-            df = pd.read_excel(file).replace({np.nan: None})
+            df = pd.read_excel(file, dtype={'no_wa_wali': str}).replace({np.nan: None})
             
-            # Looping setiap baris di excel dan masukkan ke DB
+            # Looping setiap baris di excel
             for index, row in df.iterrows():
-                santri_excel = Santri(
-                    nama_lengkap=row['nama_lengkap'],
-                    alamat=row.get('alamat', None), # .get untuk kolom opsional
-                    nama_orang_tua=row.get('nama_orang_tua', None),
-                    nama_pembimbing=row.get('nama_pembimbing', None),
-                    kelas_saat_ini=row.get('kelas_saat_ini', None),
-                    kelas_sekolah=row.get('kelas_sekolah', None),
-                    kamar=row.get('kamar', None),
-                    no_wa_wali=row.get('no_wa_wali', None),
-                    kategori=row.get('kategori', 'santri aktif')
-                )
-                db.session.add(santri_excel)
+                # Pastikan semua logika di bawah ini berada DI DALAM for loop
+                if pd.notna(row.get('nama_lengkap')) and row['nama_lengkap'].strip() != '':
+                    nama_santri = row['nama_lengkap'].strip()
+                    
+                    # Cari santri yang ada di database dengan nama yang sama
+                    santri_existing = Santri.query.filter_by(nama_lengkap=nama_santri).first()
+                    
+                    if santri_existing:
+                        # JIKA ADA: Perbarui (update) datanya
+                        santri_existing.alamat = row.get('alamat')
+                        santri_existing.nama_orang_tua = row.get('nama_orang_tua')
+                        santri_existing.nama_pembimbing = row.get('nama_pembimbing')
+                        santri_existing.kelas_saat_ini = row.get('kelas_saat_ini')
+                        santri_existing.kamar = row.get('kamar')
+                        santri_existing.no_wa_wali = row.get('no_wa_wali')
+                        santri_existing.kategori = row.get('kategori', 'santri aktif')
+                    else:
+                        # JIKA TIDAK ADA: Buat (insert) data baru
+                        santri_baru = Santri(
+                            nama_lengkap=nama_santri,
+                            alamat=row.get('alamat'),
+                            nama_orang_tua=row.get('nama_orang_tua'),
+                            nama_pembimbing=row.get('nama_pembimbing'),
+                            kelas_saat_ini=row.get('kelas_saat_ini'),
+                            kamar=row.get('kamar'),
+                            no_wa_wali=row.get('no_wa_wali'),
+                            kategori=row.get('kategori', 'santri aktif')
+                        )
+                        db.session.add(santri_baru)
             
+            # Commit semua perubahan setelah loop selesai
             db.session.commit()
             flash(f'{len(df)} santri berhasil diimpor dari Excel!', 'success')
         except Exception as e:
+            db.session.rollback() # Batalkan perubahan jika ada error
             flash(f'Terjadi error saat mengimpor file: {e}', 'danger')
         
         return redirect(url_for('admin.tambah_santri'))
@@ -241,23 +259,23 @@ def daftar_santri():
     )
 
 @admin_bp.route('/santri/hapus/<int:id>', methods=['GET', 'POST'])
-@login_required 
+@login_required
 def hapus_santri(id):
+    # Ambil data santri yang akan dihapus, jika tidak ada tampilkan error 404
     santri_untuk_dihapus = Santri.query.get_or_404(id)
-    
-    # Keamanan: Cek apakah santri punya data terkait sebelum menghapus
-    if santri_untuk_dihapus.rekap_sks or santri_untuk_dihapus.rekap_absensi or santri_untuk_dihapus.rekap_buku_sadar:
-        flash('Santri tidak bisa dihapus karena sudah memiliki data riwayat (SKS, Absensi, atau Buku Sadar).', 'danger')
-        return redirect(url_for('admin.daftar_santri'))
 
     try:
+        # Hapus objek santri dari sesi database
         db.session.delete(santri_untuk_dihapus)
+        # Terapkan perubahan ke database
         db.session.commit()
-        flash('Data santri berhasil dihapus.', 'success')
+        flash('Data santri dan semua data terkait berhasil dihapus.', 'success')
     except Exception as e:
+        # Jika terjadi error, batalkan perubahan
         db.session.rollback()
         flash(f'Terjadi error saat menghapus data: {e}', 'danger')
 
+    # Kembalikan ke halaman daftar santri
     return redirect(url_for('admin.daftar_santri'))
 
 @admin_bp.route('/santri/edit/<int:id>', methods=['GET', 'POST'])
