@@ -5,17 +5,22 @@
     <div class="card-header"><h3 class="card-title">Filter Riwayat Lalaran</h3></div>
     <div class="card-body">
         <form method="GET" action="{{ url_for('admin.riwayat_lalaran') }}" class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label for="start_date" class="form-label">Pilih Hari Sabtu di Minggu Tersebut</label>
-                <input type="date" name="start_date" id="start_date" value="{{ start_date_str }}" class="form-control">
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Dari Tanggal</label>
+                <input type="date" name="start_date" id="start_date" value="{{ q_start_date_str }}" class="form-control">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">Sampai Tanggal</label>
+                <input type="date" name="end_date" id="end_date" value="{{ q_end_date_str }}" class="form-control">
+            </div>
+            <div class="col-md-3">
                 <label for="kelas" class="form-label">Nama Kelas</label>
                 <input type="text" name="kelas" id="kelas" value="{{ q_kelas or '' }}" class="form-control">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filter</button>
                 <a href="{{ url_for('admin.riwayat_lalaran') }}" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Reset</a>
+                <a href="{{ url_for('admin.export_riwayat_lalaran', start_date=q_start_date_str, end_date=q_end_date_str, kelas=q_kelas) }}" class="btn btn-success" title="Ekspor ke Excel"><i class="fas fa-file-excel"></i></a>
             </div>
         </form>
     </div>
@@ -35,7 +40,7 @@
                         <th>{{ day.strftime('%a, %d/%m') }}</th>
                         {% endfor %}
                         <th colspan="2">TOTAL</th>
-                        <th rowspan="2">RIYADHOH</th>
+                        <th rowspan="2">RIYADHOH OTOMATIS</th>
                     </tr>
                     <tr>
                         {% for day in active_dates %}
@@ -60,7 +65,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="{{ 6 + active_dates|length }}" class="p-4">Tidak ada santri yang alpa atau telat pada minggu ini.</td>
+                        <td colspan="{{ 6 + active_dates|length }}" class="p-4">Tidak ada santri yang alpa atau telat pada periode ini.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

@@ -547,7 +547,91 @@ def export_riwayat_absensi():
 @admin_bp.route('/riwayat/buku-sadar')
 @login_required
 def riwayat_buku_sadar():
-    # 1. LOGIKA FILTER MINGGUAN
+    # 1. LOGIKA FILTER BARU (Menggunakan start_date dan end_date)
+    q_start_date_str = request.args.get('start_date', '')
+    q_end_date_str = request.args.get('end_date', '')
+    q_kelas = request.args.get('kelas', '')
+
+    # Query dasar untuk santri
+    santri_query = Santri.query.order_by(Santri.nama_lengkap)
+    if q_kelas:
+        santri_query = santri_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    list_santri = santri_query.all()
+
+    # Tentukan rentang tanggal
+    # Jika tidak ada filter, defaultnya adalah minggu ini
+    if not q_start_date_str and not q_end_date_str:
+        today = date.today()
+        start_date = today - timedelta(days=(today.weekday() + 2) % 7)
+        end_date = start_date + timedelta(days=6)
+        q_start_date_str = start_date.strftime('%Y-%m-%d')
+        q_end_date_str = end_date.strftime('%Y-%m-%d')
+    else:
+        start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date() if q_start_date_str else None
+        end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date() if q_end_date_str else None
+
+    # 2. AMBIL DATA BUKU SADAR BERDASARKAN FILTER
+    sadar_query = RekapBukuSadar.query
+    if start_date:
+        sadar_query = sadar_query.filter(RekapBukuSadar.tanggal >= start_date)
+    if end_date:
+        sadar_query = sadar_query.filter(RekapBukuSadar.tanggal <= end_date)
+    
+    sadar_records = sadar_query.all()
+    records_by_santri_day = {(r.santri_id, r.tanggal): r for r in sadar_records}
+
+    # 3. PROSES DATA (Logika Pivot)
+    processed_data = {}
+    for santri in list_santri:
+        daily_records = {}
+        total_alpa = 0
+        total_telat = 0
+        
+        # Tentukan rentang tanggal untuk loop
+        loop_start = start_date if start_date else min(r.tanggal for r in sadar_records) if sadar_records else date.today()
+        loop_end = end_date if end_date else max(r.tanggal for r in sadar_records) if sadar_records else date.today()
+        
+        active_dates_for_loop = [loop_start + timedelta(days=i) for i in range((loop_end - loop_start).days + 1)]
+
+        for day in active_dates_for_loop:
+            record = records_by_santri_day.get((santri.id, day))
+            alpa = record.jumlah_alpa if record else 0
+            telat = record.jumlah_telat if record else 0
+            daily_records[day] = {'A': alpa, 'T': telat}
+            total_alpa += alpa
+            total_telat += telat
+        
+        first_record = next((rec for rec in sadar_records if rec.santri_id == santri.id), None)
+
+        # Hanya tampilkan santri yang punya catatan
+        if total_alpa > 0 or total_telat > 0:
+            processed_data[santri.nama_lengkap] = {
+                'id': santri.id, 'kelas': santri.kelas_saat_ini,
+                'daily_records': daily_records, 'total_alpa': total_alpa, 'total_telat': total_telat,
+                'keterangan': first_record.keterangan_mingguan if first_record else '',
+                'riyadhoh': first_record.riyadhoh if first_record else 'Aman',
+                'status_lunas': first_record.status_lunas if first_record else 'Lunas'
+            }
+
+    # 4. PERSIAPAN DATA UNTUK TEMPLATE
+    active_dates_header = [d for d in active_dates_for_loop if d.weekday() != 4]
+
+    return render_template(
+        'riwayat_buku_sadar.html',
+        title="Riwayat Buku Sadar",
+        processed_data=processed_data,
+        active_dates=active_dates_header,
+        q_start_date_str=q_start_date_str,
+        q_end_date_str=q_end_date_str,
+        q_kelas=q_kelas
+    )
+
+# app/routes.py
+
+@admin_bp.route('/riwayat/buku-sadar/export')
+@login_required
+def export_riwayat_buku_sadar():
+    # 1. SALIN SEMUA LOGIKA FILTER & PEMROSESAN DATA DARI FUNGSI riwayat_buku_sadar
     today = date.today()
     start_default = today - timedelta(days=(today.weekday() + 2) % 7)
     q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
@@ -556,7 +640,6 @@ def riwayat_buku_sadar():
     
     q_kelas = request.args.get('kelas', '')
 
-    # 2. AMBIL DAFTAR SANTRI DAN DATA BUKU SADAR
     santri_query = Santri.query.order_by(Santri.nama_lengkap)
     if q_kelas:
         santri_query = santri_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
@@ -568,7 +651,6 @@ def riwayat_buku_sadar():
     
     records_by_santri_day = {(r.santri_id, r.tanggal): r for r in sadar_records}
 
-    # 3. PROSES DATA UNTUK SETIAP SANTRI
     processed_data = {}
     for santri in list_santri:
         total_alpa_mingguan = 0
@@ -576,107 +658,57 @@ def riwayat_buku_sadar():
         daily_data = {}
         active_dates = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
         
-        # Ambil info mingguan dari record pertama yang ditemukan untuk santri ini
         first_record = next((rec for rec in sadar_records if rec.santri_id == santri.id), None)
         
         for day in active_dates:
             record = records_by_santri_day.get((santri.id, day))
-            alpa = record.jumlah_alpa if record else 0
-            telat = record.jumlah_telat if record else 0
+            alpa = record.jumlah_alpa if record and record.jumlah_alpa is not None else 0
+            telat = record.jumlah_telat if record and record.jumlah_telat is not None else 0
             daily_data[day] = {'A': alpa, 'T': telat}
-            total_alpa_mingguan += alpa or 0
-            # Jika tidak ada record, anggap alpa dan telat 0
-            total_telat_mingguan += telat or 0
+            total_alpa_mingguan += alpa
+            total_telat_mingguan += telat
 
-        processed_data[santri.nama_lengkap] = {
-            'id': santri.id,
-            'kelas': santri.kelas_saat_ini,
-            'daily_records': daily_data,
-            'total_alpa': total_alpa_mingguan,
-            'total_telat': total_telat_mingguan,
-            'keterangan': first_record.keterangan_mingguan if first_record else '',
-            'riyadhoh': first_record.riyadhoh if first_record else 'Aman',
-            'status_lunas': first_record.status_lunas if first_record else 'Lunas'
-        }
+        # Hanya masukkan ke data akhir jika ada pelanggaran
+        if total_alpa_mingguan > 0 or total_telat_mingguan > 0:
+            processed_data[santri.nama_lengkap] = {
+                'id': santri.id,
+                'kelas': santri.kelas_saat_ini,
+                'daily_records': daily_data,
+                'total_alpa': total_alpa_mingguan,
+                'total_telat': total_telat_mingguan,
+                'keterangan': first_record.keterangan_mingguan if first_record else '',
+                'riyadhoh': first_record.riyadhoh if first_record else 'Aman',
+                'status_lunas': first_record.status_lunas if first_record else 'Lunas'
+            }
 
     active_dates_header = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
 
-    return render_template(
-        'riwayat_buku_sadar.html',
-        title="Riwayat Buku Sadar Mingguan",
-        processed_data=processed_data,
-        active_dates=active_dates_header,
-        start_date_str=q_start_date_str,
-        q_kelas=q_kelas
-    )
-
-@admin_bp.route('/riwayat/buku-sadar/export')
-@login_required
-def export_riwayat_buku_sadar():
-    # 1. LOGIKA FILTER & PROSES DATA (COPY DARI RUTE SEBELUMNYA)
-    today = date.today()
-    q_month_str = request.args.get('month', today.strftime('%Y-%m'))
-    selected_month = datetime.strptime(q_month_str, '%Y-%m').date()
-    
-    query = RekapBukuSadar.query.join(Santri).filter(
-        extract('year', RekapBukuSadar.tanggal) == selected_month.year,
-        extract('month', RekapBukuSadar.tanggal) == selected_month.month
-    )
-
-    q_santri_id = request.args.get('santri_id', type=int)
-    q_kelas = request.args.get('kelas', '')
-
-    if q_santri_id:
-        query = query.filter(Santri.id == q_santri_id)
-    if q_kelas:
-        query = query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
-
-    records = query.order_by(Santri.nama_lengkap, RekapBukuSadar.tanggal).all()
-    
-    processed_data = defaultdict(lambda: {
-        'kelas': '', 
-        'infractions': defaultdict(int), 
-        'total': 0, 
-        'keterangan_list': [], 
-        'riyadhoh_list': [],
-        'lunas_status': 'Lunas'
-    })
-
-    for record in records:
-        santri_name = record.santri.nama_lengkap
-        day = record.tanggal.day
-        processed_data[santri_name]['kelas'] = record.santri.kelas_saat_ini
-        processed_data[santri_name]['infractions'][day] += record.jumlah
-        processed_data[santri_name]['total'] += record.jumlah
-        processed_data[santri_name]['keterangan_list'].append(record.keterangan or 'ALFA')
-        processed_data[santri_name]['riyadhoh_list'].append(record.riyadhoh or 'FISIK')
-        if record.status_riyadhoh == 'Belum Lunas':
-            processed_data[santri_name]['lunas_status'] = 'Belum Lunas'
-
-    _, num_days = calendar.monthrange(selected_month.year, selected_month.month)
-    days_in_month = list(range(1, num_days + 1))
-
-    # 2. UBAH DATA PIVOT MENJADI FORMAT DATAFRAME
+    # 2. UBAH DATA PIVOT MENJADI FORMAT DATAFRAME UNTUK EXCEL
     data_for_excel = []
     for nama, data in processed_data.items():
         row_dict = {
             'NAMA': nama,
             'KELAS': data['kelas']
         }
-        for day in days_in_month:
-            row_dict[day] = data['infractions'].get(day, '')
+        # Tambahkan kolom harian
+        for day in active_dates_header:
+            daily_rec = data['daily_records'].get(day, {'A': 0, 'T': 0})
+            row_dict[f"{day.strftime('%a, %d/%m')} - Alpa"] = daily_rec.get('A', 0)
+            row_dict[f"{day.strftime('%a, %d/%m')} - Telat"] = daily_rec.get('T', 0)
         
-        row_dict['TOTAL'] = data['total']
-        row_dict['KETERANGAN'] = ', '.join(data['keterangan_list'])
-        row_dict['RIYADHOH'] = ', '.join(data['riyadhoh_list'])
-        row_dict['LUNAS'] = data['lunas_status']
+        # Tambahkan kolom total dan info mingguan
+        row_dict['TOTAL ALPA'] = data['total_alpa']
+        row_dict['TOTAL TELAT'] = data['total_telat']
+        row_dict['RIYADHOH'] = data['riyadhoh']
+        row_dict['STATUS'] = data['status_lunas']
+        
         data_for_excel.append(row_dict)
 
     # 3. BUAT FILE EXCEL DI MEMORI
     df = pd.DataFrame(data_for_excel)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name=selected_month.strftime('%B_%Y'))
+        df.to_excel(writer, index=False, sheet_name=f"Rekap_{start_date_str}")
     output.seek(0)
 
     # 4. KIRIM FILE SEBAGAI UNDUHAN
@@ -684,7 +716,7 @@ def export_riwayat_buku_sadar():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'riwayat_buku_sadar_{q_month_str}.xlsx'
+        download_name=f'riwayat_buku_sadar_{start_date_str}.xlsx'
     )
 
 @admin_bp.route('/riwayat/sks')
@@ -992,28 +1024,34 @@ def input_rekap_lalaran():
 @admin_bp.route('/riwayat/lalaran')
 @login_required
 def riwayat_lalaran():
-    # 1. LOGIKA FILTER MINGGUAN
-    today = date.today()
-    start_default = today - timedelta(days=(today.weekday() + 2) % 7)
-    q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
-    start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
-    end_date = start_date + timedelta(days=6)
-    
+    # 1. LOGIKA FILTER BARU (start_date & end_date)
+    q_start_date_str = request.args.get('start_date', '')
+    q_end_date_str = request.args.get('end_date', '')
     q_kelas = request.args.get('kelas', '')
 
+    # Tentukan rentang tanggal default (minggu ini) jika filter kosong
+    if not q_start_date_str and not q_end_date_str:
+        today = date.today()
+        start_date = today - timedelta(days=(today.weekday() + 2) % 7)
+        end_date = start_date + timedelta(days=6)
+        q_start_date_str = start_date.strftime('%Y-%m-%d')
+        q_end_date_str = end_date.strftime('%Y-%m-%d')
+    else:
+        start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date() if q_start_date_str else None
+        end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date() if q_end_date_str else None
+
     # 2. AMBIL DATA LALARAN (HANYA ALPA & TELAT) DAN DATA SANTRI
-    lalaran_records = RekapLalaran.query.join(Santri).filter(
-        RekapLalaran.status.in_(['A', 'T']),
-        RekapLalaran.tanggal.between(start_date, end_date)
-    )
+    lalaran_query = RekapLalaran.query.join(Santri).filter(RekapLalaran.status.in_(['A', 'T']))
+    if start_date:
+        lalaran_query = lalaran_query.filter(RekapLalaran.tanggal >= start_date)
+    if end_date:
+        lalaran_query = lalaran_query.filter(RekapLalaran.tanggal <= end_date)
     if q_kelas:
-        lalaran_records = lalaran_records.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+        lalaran_query = lalaran_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
     
-    list_lalaran = lalaran_records.all()
-    
-    # Ambil ID unik santri yang punya catatan agar tidak menampilkan semua santri
-    santri_ids_with_records = {rec.santri_id for rec in list_lalaran}
-    
+    list_lalaran = lalaran_query.all()
+    santri_ids_with_records = sorted(list(set(rec.santri_id for rec in list_lalaran)))
+
     # 3. PROSES DATA UNTUK PIVOT & HITUNG RIYADHOH
     processed_data = {}
     for santri_id in santri_ids_with_records:
@@ -1022,19 +1060,15 @@ def riwayat_lalaran():
 
         santri_info = records_for_santri[0].santri
         
-        # Hitung total Alpa & Telat
         total_alpa = sum(1 for rec in records_for_santri if rec.status == 'A')
         total_telat = sum(1 for rec in records_for_santri if rec.status == 'T')
         
-        # Logika Riyadhoh Otomatis
         riyadhoh_list = []
         if total_telat > 0:
             riyadhoh_list.append(f"{total_telat}x Setoran Alfiyah 2 Bait")
-        
         if total_alpa >= 3:
             jumlah_alpa_kbm = total_alpa // 3
-            riyadhoh_list.append(f"Rp.2000")
-            # Logika untuk otomatis menambahkan ke RekapBukuSadar bisa ditambahkan di sini jika mau
+            riyadhoh_list.append(f"{jumlah_alpa_kbm} Alpa KBM (Denda)")
 
         processed_data[santri_info.nama_lengkap] = {
             'kelas': santri_info.kelas_saat_ini,
@@ -1045,15 +1079,110 @@ def riwayat_lalaran():
         }
 
     # 4. SIAPKAN DATA UNTUK TEMPLATE
-    active_dates = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
+    loop_start = start_date if start_date else min(r.tanggal for r in list_lalaran) if list_lalaran else date.today()
+    loop_end = end_date if end_date else max(r.tanggal for r in list_lalaran) if list_lalaran else date.today()
+    date_range = [loop_start + timedelta(days=i) for i in range((loop_end - loop_start).days + 1)]
+    active_dates_header = [d for d in date_range if d.weekday() != 4]
 
     return render_template(
         'riwayat_lalaran.html',
         title="Riwayat Lalaran Mingguan",
         processed_data=processed_data,
-        active_dates=active_dates,
-        start_date_str=q_start_date_str,
+        active_dates=active_dates_header,
+        q_start_date_str=q_start_date_str,
+        q_end_date_str=q_end_date_str,
         q_kelas=q_kelas
+    )
+
+@admin_bp.route('/riwayat/lalaran/export')
+@login_required
+def export_riwayat_lalaran():
+    q_start_date_str = request.args.get('start_date', '')
+    q_end_date_str = request.args.get('end_date', '')
+    q_kelas = request.args.get('kelas', '')
+
+    # Tentukan rentang tanggal default (minggu ini) jika filter kosong
+    if not q_start_date_str and not q_end_date_str:
+        today = date.today()
+        start_date = today - timedelta(days=(today.weekday() + 2) % 7)
+        end_date = start_date + timedelta(days=6)
+        q_start_date_str = start_date.strftime('%Y-%m-%d')
+        q_end_date_str = end_date.strftime('%Y-%m-%d')
+    else:
+        start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date() if q_start_date_str else None
+        end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date() if q_end_date_str else None
+
+    # 2. AMBIL DATA LALARAN (HANYA ALPA & TELAT) DAN DATA SANTRI
+    lalaran_query = RekapLalaran.query.join(Santri).filter(RekapLalaran.status.in_(['A', 'T']))
+    if start_date:
+        lalaran_query = lalaran_query.filter(RekapLalaran.tanggal >= start_date)
+    if end_date:
+        lalaran_query = lalaran_query.filter(RekapLalaran.tanggal <= end_date)
+    if q_kelas:
+        lalaran_query = lalaran_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    
+    list_lalaran = lalaran_query.all()
+    santri_ids_with_records = sorted(list(set(rec.santri_id for rec in list_lalaran)))
+
+    # 3. PROSES DATA UNTUK PIVOT & HITUNG RIYADHOH
+    processed_data = {}
+    for santri_id in santri_ids_with_records:
+        records_for_santri = [rec for rec in list_lalaran if rec.santri_id == santri_id]
+        if not records_for_santri: continue
+
+        santri_info = records_for_santri[0].santri
+        
+        total_alpa = sum(1 for rec in records_for_santri if rec.status == 'A')
+        total_telat = sum(1 for rec in records_for_santri if rec.status == 'T')
+        
+        riyadhoh_list = []
+        if total_telat > 0:
+            riyadhoh_list.append(f"{total_telat}x Setoran Alfiyah 2 Bait")
+        if total_alpa >= 3:
+            jumlah_alpa_kbm = total_alpa // 3
+            riyadhoh_list.append(f"{jumlah_alpa_kbm} Alpa KBM (Denda)")
+
+        processed_data[santri_info.nama_lengkap] = {
+            'kelas': santri_info.kelas_saat_ini,
+            'lalaran_harian': {rec.tanggal: rec.status for rec in records_for_santri},
+            'total_alpa': total_alpa,
+            'total_telat': total_telat,
+            'riyadhoh': ' & '.join(riyadhoh_list) if riyadhoh_list else 'Aman'
+        }
+
+    # 4. SIAPKAN DATA UNTUK TEMPLATE
+    loop_start = start_date if start_date else min(r.tanggal for r in list_lalaran) if list_lalaran else date.today()
+    loop_end = end_date if end_date else max(r.tanggal for r in list_lalaran) if list_lalaran else date.today()
+    date_range = [loop_start + timedelta(days=i) for i in range((loop_end - loop_start).days + 1)]
+    active_dates_header = [d for d in date_range if d.weekday() != 4]
+
+    # 2. Siapkan data untuk Excel
+    data_for_excel = []
+    for nama, data in processed_data.items():
+        row_data = {
+            'NAMA': nama,
+            'KELAS': data['kelas']
+        }
+        for day in active_dates_header:
+            row_data[day.strftime('%a, %d/%m')] = data['lalaran_harian'].get(day, '')
+        
+        row_data['TOTAL ALPA'] = data['total_alpa']
+        row_data['TOTAL TELAT'] = data['total_telat']
+        row_data['RIYADHOH'] = data['riyadhoh']
+        data_for_excel.append(row_data)
+
+    # 3. Buat file Excel
+    df = pd.DataFrame(data_for_excel)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Riwayat Lalaran')
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'riwayat_lalaran_{q_start_date_str}_sd_{q_end_date_str}.xlsx'
     )
 
 @admin_bp.route('/input/buku-sadar', methods=['GET', 'POST'])
