@@ -18,6 +18,19 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
+class RekapLalaran(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    tanggal = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(1), nullable=False) # 'A', 'T', 'I'
+    
+    santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
+    
+    # Definisikan relasi dua arah
+    santri = db.relationship('Santri', back_populates='rekap_lalaran')
+
+    def __repr__(self):
+        return f'<Lalaran {self.santri.nama_lengkap} - {self.status}>'
+
 class Santri(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nama_lengkap = db.Column(db.String(100), nullable=False)
@@ -34,6 +47,8 @@ class Santri(db.Model):
     rekap_sks = db.relationship('RekapSks', back_populates='santri', cascade="all, delete-orphan")
     rekap_absensi = db.relationship('RekapAbsensi', back_populates='santri', cascade="all, delete-orphan")
     rekap_buku_sadar = db.relationship('RekapBukuSadar', back_populates='santri', cascade="all, delete-orphan")
+    rekap_lalaran = db.relationship('RekapLalaran', back_populates='santri', cascade="all, delete-orphan")
+
 
     def __repr__(self):
         return f'<Santri {self.nama_lengkap}>'
@@ -59,32 +74,39 @@ class RekapSks(db.Model):
 class RekapAbsensi(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tanggal = db.Column(db.Date, nullable=False)
+    
+    # Kolom jumlah sesi
     jumlah_hadir = db.Column(db.Integer, nullable=False, default=4)
     jumlah_sakit_izin = db.Column(db.Integer, nullable=False, default=0)
     jumlah_alpa = db.Column(db.Integer, nullable=False, default=0)
-    keterangan_mingguan = db.Column(db.String(255), nullable=True)
     
+    # Kolom baru untuk info mingguan
+    keterangan_mingguan = db.Column(db.String(255), nullable=True)
+    riyadhoh = db.Column(db.String(255), nullable=True)
+    status_lunas = db.Column(db.String(20), nullable=False, default='Belum Lunas')
+    
+    # Foreign Key dan relasi (tidak berubah)
     santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
     santri = db.relationship('Santri', back_populates='rekap_absensi')
-    
+
     def __repr__(self):
         return f'<Absensi {self.santri.nama_lengkap} - {self.tanggal}>'
     
 class RekapBukuSadar(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    tanggal_awal_minggu = db.Column(db.Date, nullable=False)
-    keterangan = db.Column(db.String(255), nullable=True)
+    tanggal = db.Column(db.Date, nullable=False)
+
+    # Kolom baru untuk alpa dan telat
+    jumlah_alpa = db.Column(db.Integer, default=0)
+    jumlah_telat = db.Column(db.Integer, default=0)
+
+    # Keterangan dan riyadhoh akan sama untuk satu minggu
+    keterangan_mingguan = db.Column(db.String(255), nullable=True)
     riyadhoh = db.Column(db.String(255), nullable=True)
     status_lunas = db.Column(db.String(20), nullable=False, default='Belum Lunas')
 
-    # --- PERBAIKAN DI SINI ---
-    # Cukup satu definisi santri_id, gabungkan ondelete='CASCADE'
     santri_id = db.Column(db.Integer, db.ForeignKey('santri.id', ondelete='CASCADE'), nullable=False)
-    
-    # Definisikan relasi dua arah
     santri = db.relationship('Santri', back_populates='rekap_buku_sadar')
 
-    __table_args__ = (db.UniqueConstraint('santri_id', 'tanggal_awal_minggu', name='_santri_minggu_uc'),)
-
     def __repr__(self):
-        return f'<Buku Sadar Mingguan: {self.santri_id} - {self.tanggal_awal_minggu}>'
+        return f'<Buku Sadar Harian: {self.santri.nama_lengkap} - {self.tanggal}>'

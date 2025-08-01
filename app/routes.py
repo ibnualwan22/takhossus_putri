@@ -28,50 +28,57 @@ from flask_login import login_required
 # 3. Impor dari Aplikasi Lokal Anda
 from . import db
 from .models import (Santri, SksMaster, RekapSks, RekapAbsensi, 
-                     RekapBukuSadar)
+                     RekapBukuSadar,RekapLalaran)
 from .forms import (RekapSksForm, SantriForm, UploadExcelForm, 
-                    SksMasterForm, RekapAbsensiHarianForm, KoreksiBukuSadarForm )
+                    SksMasterForm, RekapAbsensiHarianForm, KoreksiBukuSadarForm,RekapLalaranMingguanForm, RekapBukuSadarMingguanForm)
 
 
 # 1. Buat Blueprint untuk admin
 # Semua URL di file ini akan diawali dengan /admin
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+# app/routes.py
+
 @admin_bp.route('/dashboard')
 @login_required
 def admin_dashboard():
-    # --- Statistik Kartu (Tidak berubah) ---
+    # --- Statistik Kartu ---
     jumlah_santri = Santri.query.count()
     jumlah_sks = SksMaster.query.count()
     today = date.today()
-    absen_hari_ini = RekapAbsensi.query.filter_by(tanggal=today).count()
-    start_of_week = today - timedelta(days=(today.weekday() + 2) % 7)
-    sadar_minggu_ini = RekapBukuSadar.query.filter_by(tanggal_awal_minggu=start_of_week).count()
-
-    # --- LOGIKA GRAFIK DENGAN PERBAIKAN ---
     
-    # 1. Data Mingguan
-    week_labels = []
-    week_hadir = []
-    week_izin = []
-    week_alpa = []
+    # PERBAIKAN DI SINI: Pastikan query menghitung dari tabel RekapAbsensi
+    absen_hari_ini = RekapAbsensi.query.filter_by(tanggal=today).count()
+    
+    start_of_week = today - timedelta(days=(today.weekday() + 2) % 7)
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    # Menghitung jumlah rekap buku sadar untuk MINGGU INI
+    sadar_minggu_ini = RekapBukuSadar.query.filter(
+        RekapBukuSadar.tanggal.between(start_of_week, end_of_week)
+    ).count()
+
+    # --- Logika untuk Grafik ---
+    chart_labels = []
+    chart_hadir = []
+    chart_izin = []
+    chart_alpa = []
     for i in range(7):
         day = start_of_week + timedelta(days=i)
-        if day.weekday() == 4: continue
+        if day.weekday() == 4: continue # Lewati Jumat
         
-        week_labels.append(day.strftime('%a'))
+        chart_labels.append(day.strftime('%a'))
         daily_stats = db.session.query(
             func.sum(RekapAbsensi.jumlah_hadir).label('total_hadir'),
             func.sum(RekapAbsensi.jumlah_sakit_izin).label('total_sakit_izin'),
             func.sum(RekapAbsensi.jumlah_alpa).label('total_alpa')
         ).filter(RekapAbsensi.tanggal == day).one()
         
-        # UBAH MENJADI INT() DI SINI
-        week_hadir.append(int(daily_stats.total_hadir or 0))
-        week_izin.append(int(daily_stats.total_sakit_izin or 0))
-        week_alpa.append(int(daily_stats.total_alpa or 0))
+        chart_hadir.append(int(daily_stats.total_hadir or 0))
+        chart_izin.append(int(daily_stats.total_sakit_izin or 0))
+        chart_alpa.append(int(daily_stats.total_alpa or 0))
 
-    # 2. Data Bulanan
+    # Data Bulanan (per minggu dalam bulan ini)
     month_labels = []
     month_hadir = []
     month_izin = []
@@ -92,7 +99,6 @@ def admin_dashboard():
             func.sum(RekapAbsensi.jumlah_alpa).label('total_alpa')
         ).filter(RekapAbsensi.tanggal.between(current_saturday, week_end)).one()
         
-        # UBAH MENJADI INT() DI SINI JUGA
         month_hadir.append(int(weekly_stats.total_hadir or 0))
         month_izin.append(int(weekly_stats.total_sakit_izin or 0))
         month_alpa.append(int(weekly_stats.total_alpa or 0))
@@ -101,7 +107,7 @@ def admin_dashboard():
         week_num += 1
 
     chart_data = {
-        'week': {'labels': week_labels, 'hadir': week_hadir, 'izin': week_izin, 'alpa': week_alpa},
+        'week': {'labels': chart_labels, 'hadir': chart_hadir, 'izin': chart_izin, 'alpa': chart_alpa},
         'month': {'labels': month_labels, 'hadir': month_hadir, 'izin': month_izin, 'alpa': month_alpa}
     }
 
@@ -351,48 +357,69 @@ def input_rekap_absensi():
     form = RekapAbsensiHarianForm()
     form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
 
+    # Saat halaman pertama kali dibuka (bukan hasil submit)
+    if not form.is_submitted():
+        # Atur nilai default untuk setiap hari
+        form.days[0].hadir.data = 4  # Sabtu
+        form.days[1].hadir.data = 3  # Minggu (Ahad)
+        form.days[2].hadir.data = 4  # Senin
+        form.days[3].hadir.data = 2  # Selasa
+        form.days[4].hadir.data = 4  # Rabu
+        form.days[5].hadir.data = 3  # Kamis
+
+        # Pastikan nilai lain defaultnya 0
+        for i in range(6):
+            if form.days[i].hadir.data != 0:
+                 form.days[i].sakit_izin.data = 0
+                 form.days[i].alpa.data = 0
+    # --- AKHIR BLOK KODE BARU ---
+
     if form.validate_on_submit():
         santri_id = form.santri.data
         start_date = form.tanggal_awal_minggu.data
-        keterangan_mingguan = form.keterangan.data
-
-        # Hapus data lama untuk minggu tersebut
         end_date = start_date + timedelta(days=6)
+
+        # Hapus data lama
         RekapAbsensi.query.filter(
             RekapAbsensi.santri_id == santri_id,
             RekapAbsensi.tanggal.between(start_date, end_date)
         ).delete(synchronize_session=False)
 
-        # Simpan data baru untuk 6 hari aktif
+        # Simpan data baru dan hitung total alpa
+        total_alpa_mingguan = 0
+        new_records = []
         day_index = 0
-        for i in range(7): # Loop 7 hari
+        for i in range(7):
             current_date = start_date + timedelta(days=i)
-            if current_date.weekday() == 4: # Lewati hari Jumat
-                continue
+            if current_date.weekday() == 4: continue
             
-            # Ambil data dari form untuk hari ini
             day_form = form.days[day_index]
+            total_alpa_mingguan += day_form.alpa.data
             
-            # Hanya simpan jika ada sesi yang tidak hadir
             absensi_harian = RekapAbsensi(
-                    santri_id=santri_id,
-                    tanggal=current_date,
-                    jumlah_hadir=day_form.hadir.data,
-                    jumlah_sakit_izin=day_form.sakit_izin.data,
-                    jumlah_alpa=day_form.alpa.data,
-                    keterangan_mingguan=keterangan_mingguan
-                )
+                santri_id=santri_id, tanggal=current_date,
+                jumlah_hadir=day_form.hadir.data,
+                jumlah_sakit_izin=day_form.sakit_izin.data,
+                jumlah_alpa=day_form.alpa.data,
+                keterangan_mingguan=form.keterangan.data,
+                status_lunas=form.status_lunas.data
+            )
             db.session.add(absensi_harian)
-            
+            new_records.append(absensi_harian)
             day_index += 1
-
+        
+        # Logika Riyadhoh Otomatis
+        riyadhoh_text = f"Denda Rp.{total_alpa_mingguan * 2000}" if total_alpa_mingguan > 0 else "Aman"
+        
+        # Terapkan riyadhoh ke semua record baru di minggu itu
+        for record in new_records:
+            record.riyadhoh = riyadhoh_text
+        
         db.session.commit()
         flash('Rekap absensi mingguan berhasil disimpan!', 'success')
         return redirect(url_for('admin.input_rekap_absensi'))
 
-    # Siapkan label untuk hari
     nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
-    
     return render_template(
         'input_absensi_harian.html', 
         title="Input Rekap Absensi Harian", 
@@ -403,64 +430,62 @@ def input_rekap_absensi():
 @admin_bp.route('/riwayat/absensi')
 @login_required
 def riwayat_absensi():
-    # 1. LOGIKA FILTER (default 7 hari terakhir, dari Sabtu)
+    # 1. LOGIKA FILTER (tidak ada perubahan)
     today = date.today()
     start_default = today - timedelta(days=(today.weekday() + 2) % 7)
     end_default = start_default + timedelta(days=6)
-
     q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
     q_end_date_str = request.args.get('end_date', end_default.strftime('%Y-%m-%d'))
     q_kelas = request.args.get('kelas', '')
-
     start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
     end_date = datetime.strptime(q_end_date_str, '%Y-%m-%d').date()
 
-    # 2. AMBIL DAFTAR SANTRI TERLEBIH DAHULU BERDASARKAN FILTER KELAS
+    # 2. AMBIL SEMUA SANTRI YANG SESUAI FILTER (tidak ada perubahan)
     santri_query = Santri.query.order_by(Santri.nama_lengkap)
     if q_kelas:
         santri_query = santri_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
-    
     list_santri = santri_query.all()
 
-    # 3. AMBIL SEMUA DATA ABSENSI YANG RELEVAN
-    records = RekapAbsensi.query.filter(
-        RekapAbsensi.tanggal.between(start_date, end_date)
-    ).all()
-    
-    # Kelompokkan record berdasarkan santri_id untuk pencarian cepat
-    records_by_santri = defaultdict(list)
-    for r in records:
-        records_by_santri[r.santri_id].append(r)
+    # 3. AMBIL SEMUA DATA ABSENSI YANG RELEVAN (tidak ada perubahan)
+    records = RekapAbsensi.query.filter(RekapAbsensi.tanggal.between(start_date, end_date)).all()
+    records_by_santri_day = {(r.santri_id, r.tanggal): r for r in records}
 
-    # 4. PROSES DATA UNTUK SETIAP SANTRI
+    # 4. PROSES DATA DENGAN LOGIKA BARU UNTUK MENGAMBIL DATA MINGGUAN
     processed_data = {}
     for santri in list_santri:
-        # Inisialisasi data untuk setiap santri
+        # Ambil record pertama untuk santri ini di minggu ini untuk mendapatkan data mingguan
+        first_record_of_week = next((rec for rec in records if rec.santri_id == santri.id), None)
+
         santri_data = {
+            'id': santri.id, # <-- TAMBAHKAN BA
             'kelas': santri.kelas_saat_ini,
-            'absensi': defaultdict(dict) # Mulai dengan dictionary kosong
+            'absensi': {},
+            'keterangan': first_record_of_week.keterangan_mingguan if first_record_of_week else '',
+            'riyadhoh': first_record_of_week.riyadhoh if first_record_of_week else 'Aman',
+            'status_lunas': first_record_of_week.status_lunas if first_record_of_week else 'Lunas'
         }
         
-        # Cek apakah santri ini punya catatan absensi
-        if santri.id in records_by_santri:
-            for record in records_by_santri[santri.id]:
-                santri_data['absensi'][record.tanggal] = {
-                    'H': record.jumlah_hadir,
-                    'I': record.jumlah_sakit_izin,
-                    'A': record.jumlah_alpa
-                }
+        active_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1) if (start_date + timedelta(days=i)).weekday() != 4]
+        
+        for day in active_dates:
+            record = records_by_santri_day.get((santri.id, day))
+            if record:
+                santri_data['absensi'][day] = {'H': record.jumlah_hadir, 'I': record.jumlah_sakit_izin, 'A': record.jumlah_alpa}
+            else:
+                # Logika asumsi hadir penuh (tidak ada perubahan)
+                santri_data['absensi'][day] = {'H': 0, 'I': 0, 'A': 0}
         
         processed_data[santri.nama_lengkap] = santri_data
 
-    # 5. PERSIAPAN DATA UNTUK TEMPLATE
+    # 5. PERSIAPAN DATA UNTUK TEMPLATE (tidak ada perubahan)
     date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
-    active_dates = [d for d in date_range if d.weekday() != 4] # Hapus Jumat
+    active_dates_header = [d for d in date_range if d.weekday() != 4]
 
     return render_template(
         'riwayat_absensi.html',
         title="Laporan Detail Absensi",
         processed_data=processed_data,
-        active_dates=active_dates,
+        active_dates=active_dates_header,
         q_start_date_str=q_start_date_str,
         q_end_date_str=q_end_date_str,
         q_kelas=q_kelas
@@ -522,7 +547,7 @@ def export_riwayat_absensi():
 @admin_bp.route('/riwayat/buku-sadar')
 @login_required
 def riwayat_buku_sadar():
-    # 1. FILTER MINGGUAN
+    # 1. LOGIKA FILTER MINGGUAN
     today = date.today()
     start_default = today - timedelta(days=(today.weekday() + 2) % 7)
     q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
@@ -531,47 +556,56 @@ def riwayat_buku_sadar():
     
     q_kelas = request.args.get('kelas', '')
 
-    # 2. AMBIL DATA SANTRI
+    # 2. AMBIL DAFTAR SANTRI DAN DATA BUKU SADAR
     santri_query = Santri.query.order_by(Santri.nama_lengkap)
     if q_kelas:
         santri_query = santri_query.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
     list_santri = santri_query.all()
 
-    # 3. AMBIL DATA ABSENSI & BUKU SADAR
-    absensi_records = RekapAbsensi.query.filter(RekapAbsensi.tanggal.between(start_date, end_date)).all()
-    sadar_records = RekapBukuSadar.query.filter_by(tanggal_awal_minggu=start_date).all()
+    sadar_records = RekapBukuSadar.query.filter(
+        RekapBukuSadar.tanggal.between(start_date, end_date)
+    ).all()
     
-    absensi_by_santri = defaultdict(lambda: defaultdict(int))
-    for r in absensi_records:
-        absensi_by_santri[r.santri_id][r.tanggal] = r.jumlah_alpa
-        
-    sadar_by_santri = {r.santri_id: r for r in sadar_records}
+    records_by_santri_day = {(r.santri_id, r.tanggal): r for r in sadar_records}
 
-    # 4. PROSES DATA
+    # 3. PROSES DATA UNTUK SETIAP SANTRI
     processed_data = {}
     for santri in list_santri:
-        total_alpa = sum(absensi_by_santri[santri.id].values())
-        sadar_info = sadar_by_santri.get(santri.id)
+        total_alpa_mingguan = 0
+        total_telat_mingguan = 0
+        daily_data = {}
+        active_dates = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
         
-        santri_data = {
+        # Ambil info mingguan dari record pertama yang ditemukan untuk santri ini
+        first_record = next((rec for rec in sadar_records if rec.santri_id == santri.id), None)
+        
+        for day in active_dates:
+            record = records_by_santri_day.get((santri.id, day))
+            alpa = record.jumlah_alpa if record else 0
+            telat = record.jumlah_telat if record else 0
+            daily_data[day] = {'A': alpa, 'T': telat}
+            total_alpa_mingguan += alpa or 0
+            # Jika tidak ada record, anggap alpa dan telat 0
+            total_telat_mingguan += telat or 0
+
+        processed_data[santri.nama_lengkap] = {
             'id': santri.id,
             'kelas': santri.kelas_saat_ini,
-            'alpa_harian': absensi_by_santri[santri.id],
-            'total_alpa': total_alpa,
-            'keterangan': sadar_info.keterangan if sadar_info else '',
-            'riyadhoh': sadar_info.riyadhoh if sadar_info else '',
-            'status_lunas': sadar_info.status_lunas if sadar_info else 'Lunas'
+            'daily_records': daily_data,
+            'total_alpa': total_alpa_mingguan,
+            'total_telat': total_telat_mingguan,
+            'keterangan': first_record.keterangan_mingguan if first_record else '',
+            'riyadhoh': first_record.riyadhoh if first_record else 'Aman',
+            'status_lunas': first_record.status_lunas if first_record else 'Lunas'
         }
-        processed_data[santri.nama_lengkap] = santri_data
 
-    # 5. SIAPKAN DATA UNTUK TEMPLATE
-    active_dates = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
+    active_dates_header = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
 
     return render_template(
         'riwayat_buku_sadar.html',
-        title=f"Riwayat Buku Sadar Mingguan",
+        title="Riwayat Buku Sadar Mingguan",
         processed_data=processed_data,
-        active_dates=active_dates,
+        active_dates=active_dates_header,
         start_date_str=q_start_date_str,
         q_kelas=q_kelas
     )
@@ -775,93 +809,92 @@ def koreksi_buku_sadar(santri_id, start_date_str):
     form = KoreksiBukuSadarForm()
 
     if form.validate_on_submit():
-        # 1. Update data di RekapAbsensi
+        # 1. Hapus semua catatan lama di minggu ini untuk santri ini
+        RekapBukuSadar.query.filter(
+            RekapBukuSadar.santri_id == santri_id,
+            RekapBukuSadar.tanggal.between(start_date, end_date)
+        ).delete(synchronize_session=False)
+
+        # 2. Simpan data baru dari form dan hitung total
+        total_alpa_mingguan = 0
+        total_telat_mingguan = 0
         day_index = 0
+        new_records = []
+
         for i in range(7):
             current_date = start_date + timedelta(days=i)
-            if current_date.weekday() == 4: continue
+            if current_date.weekday() == 4: continue # Lewati Jumat
 
             day_form = form.days[day_index]
-            # Logika validasi total sesi per hari (4 atau 2)
-            expected_total = 2 if current_date.weekday() == 1 else 4
-            if (day_form.hadir.data + day_form.sakit_izin.data + day_form.alpa.data) != expected_total:
-                flash(f"Total sesi untuk hari {current_date.strftime('%A')} harus {expected_total}!", "danger")
-                return redirect(url_for('admin.koreksi_buku_sadar', santri_id=santri_id, start_date_str=start_date_str))
+            alpa_harian = day_form.alpa.data or 0
+            telat_harian = day_form.telat.data or 0
 
-            # Update atau buat record absensi
-            record_absensi = RekapAbsensi.query.filter_by(santri_id=santri_id, tanggal=current_date).first()
-            if record_absensi:
-                record_absensi.jumlah_hadir = day_form.hadir.data
-                record_absensi.jumlah_sakit_izin = day_form.sakit_izin.data
-                record_absensi.jumlah_alpa = day_form.alpa.data
-            elif day_form.sakit_izin.data > 0 or day_form.alpa.data > 0:
-                new_record = RekapAbsensi(
-                    santri_id=santri_id, tanggal=current_date,
-                    jumlah_hadir=day_form.hadir.data,
-                    jumlah_sakit_izin=day_form.sakit_izin.data,
-                    jumlah_alpa=day_form.alpa.data
+            # Hanya buat record jika ada pelanggaran
+            if alpa_harian > 0 or telat_harian > 0:
+                total_alpa_mingguan += alpa_harian
+                total_telat_mingguan += telat_harian
+                
+                rekap_harian = RekapBukuSadar(
+                    santri_id=santri_id,
+                    tanggal=current_date,
+                    jumlah_alpa=alpa_harian,
+                    jumlah_telat=telat_harian,
+                    keterangan_mingguan=form.keterangan.data,
+                    status_lunas=form.status_lunas.data
                 )
-                db.session.add(new_record)
+                db.session.add(rekap_harian)
+                new_records.append(rekap_harian)
             day_index += 1
-
-        # 2. Update atau buat data di RekapBukuSadar (ringkasan mingguan)
-        record_sadar = RekapBukuSadar.query.filter_by(santri_id=santri_id, tanggal_awal_minggu=start_date).first()
-        if record_sadar:
-            record_sadar.keterangan = form.keterangan.data
-            record_sadar.riyadhoh = form.riyadhoh.data
-            record_sadar.status_lunas = form.status_lunas.data
-        else:
-            new_sadar = RekapBukuSadar(
-                santri_id=santri_id, tanggal_awal_minggu=start_date,
-                keterangan=form.keterangan.data,
-                riyadhoh=form.riyadhoh.data,
-                status_lunas=form.status_lunas.data
-            )
-            db.session.add(new_sadar)
-
+        
+        # 3. Hitung dan terapkan Riyadhoh Otomatis
+        alpa_konversi = total_telat_mingguan // 2
+        sisa_telat = total_telat_mingguan % 2
+        final_alpa = total_alpa_mingguan + alpa_konversi
+        
+        riyadhoh_list = []
+        if final_alpa > 0: riyadhoh_list.append(f"Denda Rp.{final_alpa * 2000}")
+        if sisa_telat > 0: riyadhoh_list.append("Fisik")
+        riyadhoh_text = ' & '.join(riyadhoh_list) if riyadhoh_list else 'Aman'
+        
+        # Terapkan riyadhoh ke semua record baru
+        for record in new_records:
+            record.riyadhoh = riyadhoh_text
+        
         db.session.commit()
-        flash('Data koreksi berhasil disimpan!', 'success')
-        return redirect(url_for('admin.riwayat_buku_sadar'))
+        flash('Data koreksi Buku Sadar berhasil disimpan!', 'success')
+        return redirect(url_for('admin.riwayat_buku_sadar', start_date=start_date_str))
 
     # --- Method GET: Isi form dengan data yang ada ---
-    # 1. Isi data mingguan (keterangan, riyadhoh, status)
-    rekap_sadar = RekapBukuSadar.query.filter_by(santri_id=santri_id, tanggal_awal_minggu=start_date).first()
-    if rekap_sadar:
-        form.keterangan.data = rekap_sadar.keterangan
-        form.riyadhoh.data = rekap_sadar.riyadhoh
-        form.status_lunas.data = rekap_sadar.status_lunas
-
-    # 2. Isi data absensi harian
-    absensi_records = RekapAbsensi.query.filter(
-        RekapAbsensi.santri_id == santri_id,
-        RekapAbsensi.tanggal.between(start_date, end_date)
+    sadar_records = RekapBukuSadar.query.filter(
+        RekapBukuSadar.santri_id == santri_id,
+        RekapBukuSadar.tanggal.between(start_date, end_date)
     ).all()
-    absensi_dict = {rec.tanggal: rec for rec in absensi_records}
+    
+    if sadar_records:
+        form.keterangan.data = sadar_records[0].keterangan_mingguan
+        form.status_lunas.data = sadar_records[0].status_lunas
 
+    sadar_dict = {rec.tanggal: rec for rec in sadar_records}
     day_index = 0
     for i in range(7):
         current_date = start_date + timedelta(days=i)
         if current_date.weekday() == 4: continue
         
-        expected_total = 2 if current_date.weekday() == 1 else 4
-        record = absensi_dict.get(current_date)
+        record = sadar_dict.get(current_date)
         if record:
-            form.days[day_index].hadir.data = record.jumlah_hadir
-            form.days[day_index].sakit_izin.data = record.jumlah_sakit_izin
             form.days[day_index].alpa.data = record.jumlah_alpa
-        else: # Jika tidak ada record, berarti hadir penuh
-            form.days[day_index].hadir.data = expected_total
-            form.days[day_index].sakit_izin.data = 0
+            form.days[day_index].telat.data = record.jumlah_telat
+        else:
             form.days[day_index].alpa.data = 0
+            form.days[day_index].telat.data = 0
         day_index += 1
 
     nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
     return render_template(
         'koreksi_buku_sadar.html',
-        title=f"Koreksi Absensi & Buku Sadar: {santri.nama_lengkap}",
+        title=f"Koreksi Buku Sadar: {santri.nama_lengkap}",
         form=form,
         nama_hari=nama_hari,
-        santri=santri,
         start_date_str=start_date_str
     )
 
@@ -909,4 +942,286 @@ def export_santri():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
         download_name=f'daftar_santri_{date.today().strftime("%Y%m%d")}.xlsx'
+    )
+
+@admin_bp.route('/rekap/lalaran', methods=['GET', 'POST'])
+@login_required
+def input_rekap_lalaran():
+    form = RekapLalaranMingguanForm()
+    form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
+
+    if form.validate_on_submit():
+        santri_id = form.santri.data
+        start_date = form.tanggal_awal_minggu.data
+        end_date = start_date + timedelta(days=6)
+
+        # Hapus data lama
+        RekapLalaran.query.filter(
+            RekapLalaran.santri_id == santri_id,
+            RekapLalaran.tanggal.between(start_date, end_date)
+        ).delete(synchronize_session=False)
+
+        # Simpan data baru
+        day_index = 0
+        for i in range(7):
+            current_date = start_date + timedelta(days=i)
+            if current_date.weekday() == 4: continue
+            
+            day_form = form.days[day_index]
+            if day_form.status.data: # Hanya simpan jika status tidak kosong (bukan 'Hadir')
+                lalaran_harian = RekapLalaran(
+                    santri_id=santri_id,
+                    tanggal=current_date,
+                    status=day_form.status.data
+                )
+                db.session.add(lalaran_harian)
+            day_index += 1
+            
+        db.session.commit()
+        flash('Rekap lalaran mingguan berhasil disimpan!', 'success')
+        return redirect(url_for('admin.input_rekap_lalaran'))
+
+    nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
+    return render_template(
+        'input_lalaran.html', 
+        title="Input Rekap Lalaran", 
+        form=form,
+        nama_hari=nama_hari
+    )
+
+@admin_bp.route('/riwayat/lalaran')
+@login_required
+def riwayat_lalaran():
+    # 1. LOGIKA FILTER MINGGUAN
+    today = date.today()
+    start_default = today - timedelta(days=(today.weekday() + 2) % 7)
+    q_start_date_str = request.args.get('start_date', start_default.strftime('%Y-%m-%d'))
+    start_date = datetime.strptime(q_start_date_str, '%Y-%m-%d').date()
+    end_date = start_date + timedelta(days=6)
+    
+    q_kelas = request.args.get('kelas', '')
+
+    # 2. AMBIL DATA LALARAN (HANYA ALPA & TELAT) DAN DATA SANTRI
+    lalaran_records = RekapLalaran.query.join(Santri).filter(
+        RekapLalaran.status.in_(['A', 'T']),
+        RekapLalaran.tanggal.between(start_date, end_date)
+    )
+    if q_kelas:
+        lalaran_records = lalaran_records.filter(Santri.kelas_saat_ini.ilike(f'%{q_kelas}%'))
+    
+    list_lalaran = lalaran_records.all()
+    
+    # Ambil ID unik santri yang punya catatan agar tidak menampilkan semua santri
+    santri_ids_with_records = {rec.santri_id for rec in list_lalaran}
+    
+    # 3. PROSES DATA UNTUK PIVOT & HITUNG RIYADHOH
+    processed_data = {}
+    for santri_id in santri_ids_with_records:
+        records_for_santri = [rec for rec in list_lalaran if rec.santri_id == santri_id]
+        if not records_for_santri: continue
+
+        santri_info = records_for_santri[0].santri
+        
+        # Hitung total Alpa & Telat
+        total_alpa = sum(1 for rec in records_for_santri if rec.status == 'A')
+        total_telat = sum(1 for rec in records_for_santri if rec.status == 'T')
+        
+        # Logika Riyadhoh Otomatis
+        riyadhoh_list = []
+        if total_telat > 0:
+            riyadhoh_list.append(f"{total_telat}x Setoran Alfiyah 2 Bait")
+        
+        if total_alpa >= 3:
+            jumlah_alpa_kbm = total_alpa // 3
+            riyadhoh_list.append(f"Rp.2000")
+            # Logika untuk otomatis menambahkan ke RekapBukuSadar bisa ditambahkan di sini jika mau
+
+        processed_data[santri_info.nama_lengkap] = {
+            'kelas': santri_info.kelas_saat_ini,
+            'lalaran_harian': {rec.tanggal: rec.status for rec in records_for_santri},
+            'total_alpa': total_alpa,
+            'total_telat': total_telat,
+            'riyadhoh': ' & '.join(riyadhoh_list) if riyadhoh_list else 'Aman'
+        }
+
+    # 4. SIAPKAN DATA UNTUK TEMPLATE
+    active_dates = [start_date + timedelta(days=i) for i in range(7) if (start_date + timedelta(days=i)).weekday() != 4]
+
+    return render_template(
+        'riwayat_lalaran.html',
+        title="Riwayat Lalaran Mingguan",
+        processed_data=processed_data,
+        active_dates=active_dates,
+        start_date_str=q_start_date_str,
+        q_kelas=q_kelas
+    )
+
+@admin_bp.route('/input/buku-sadar', methods=['GET', 'POST'])
+@login_required
+def input_buku_sadar():
+    form = RekapBukuSadarMingguanForm()
+    form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
+
+    if form.validate_on_submit():
+        santri_id = form.santri.data
+        start_date = form.tanggal_awal_minggu.data
+        end_date = start_date + timedelta(days=6)
+
+        # Hapus data lama untuk minggu tersebut
+        RekapBukuSadar.query.filter(
+            RekapBukuSadar.santri_id == santri_id,
+            RekapBukuSadar.tanggal.between(start_date, end_date)
+        ).delete(synchronize_session=False)
+
+        # Simpan data baru dan hitung riyadhoh
+        total_alpa_mingguan = 0
+        total_telat_mingguan = 0
+        day_index = 0
+        for i in range(7):
+            current_date = start_date + timedelta(days=i)
+            if current_date.weekday() == 4: continue # Lewati Jumat
+            
+            day_form = form.days[day_index]
+            if day_form.alpa.data > 0 or day_form.telat.data > 0:
+                total_alpa_mingguan += day_form.alpa.data
+                total_telat_mingguan += day_form.telat.data
+                
+                rekap_harian = RekapBukuSadar(
+                    santri_id=santri_id,
+                    tanggal=current_date,
+                    jumlah_alpa=day_form.alpa.data,
+                    jumlah_telat=day_form.telat.data,
+                    keterangan_mingguan=form.keterangan.data,
+                    status_lunas=form.status_lunas.data
+                )
+                db.session.add(rekap_harian)
+            day_index += 1
+        
+        # Logika Riyadhoh Otomatis
+        alpa_konversi_dari_telat = total_telat_mingguan // 2
+        sisa_telat = total_telat_mingguan % 2
+        final_alpa = total_alpa_mingguan + alpa_konversi_dari_telat
+        
+        riyadhoh_list = []
+        if final_alpa > 0:
+            riyadhoh_list.append(f"Denda Rp.{final_alpa * 2000}")
+        if sisa_telat > 0:
+            riyadhoh_list.append("Fisik")
+        
+        riyadhoh_text = ' & '.join(riyadhoh_list) if riyadhoh_list else 'Aman'
+
+        # Update riyadhoh untuk semua record di minggu itu
+        rekap_to_update = RekapBukuSadar.query.filter(
+            RekapBukuSadar.santri_id == santri_id,
+            RekapBukuSadar.tanggal.between(start_date, end_date)
+        ).all()
+        for rekap in rekap_to_update:
+            rekap.riyadhoh = riyadhoh_text
+
+        db.session.commit()
+        flash('Rekap Buku Sadar mingguan berhasil disimpan!', 'success')
+        return redirect(url_for('admin.input_buku_sadar'))
+
+    nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
+    return render_template(
+        'input_buku_sadar.html', 
+        title="Input Buku Sadar (Alpa & Telat)", 
+        form=form,
+        nama_hari=nama_hari
+    )
+
+# app/routes.py
+
+@admin_bp.route('/rekap/absensi/edit/<int:santri_id>/<start_date_str>', methods=['GET', 'POST'])
+@login_required
+def edit_rekap_absensi(santri_id, start_date_str):
+    santri = Santri.query.get_or_404(santri_id)
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = start_date + timedelta(days=6)
+    
+    form = RekapAbsensiHarianForm()
+    # Pilihan dropdown wajib diisi untuk validasi saat form di-POST
+    form.santri.choices = [(s.id, s.nama_lengkap) for s in Santri.query.order_by('nama_lengkap').all()]
+
+    if form.validate_on_submit():
+        # Hapus data lama untuk minggu ini
+        RekapAbsensi.query.filter(
+            RekapAbsensi.santri_id == santri_id,
+            RekapAbsensi.tanggal.between(start_date, end_date)
+        ).delete(synchronize_session=False)
+
+        # Simpan data baru dan hitung total alpa
+        total_alpa_mingguan = 0
+        new_records = []
+        day_index = 0
+        for i in range(7):
+            current_date = start_date + timedelta(days=i)
+            if current_date.weekday() == 4: continue # Lewati Jumat
+            
+            day_form = form.days[day_index]
+            total_alpa_mingguan += day_form.alpa.data
+            
+            absensi_harian = RekapAbsensi(
+                santri_id=santri_id, tanggal=current_date,
+                jumlah_hadir=day_form.hadir.data,
+                jumlah_sakit_izin=day_form.sakit_izin.data,
+                jumlah_alpa=day_form.alpa.data,
+                keterangan_mingguan=form.keterangan.data,
+                status_lunas=form.status_lunas.data
+            )
+            db.session.add(absensi_harian)
+            new_records.append(absensi_harian)
+            day_index += 1
+        
+        # Logika Riyadhoh Otomatis
+        riyadhoh_text = f"Denda Rp.{total_alpa_mingguan * 2000}" if total_alpa_mingguan > 0 else "Aman"
+        
+        # Terapkan riyadhoh ke semua record baru di minggu itu
+        for record in new_records:
+            record.riyadhoh = riyadhoh_text
+        
+        db.session.commit()
+        flash('Rekap absensi berhasil diperbarui!', 'success')
+        # Redirect kembali ke laporan dengan filter tanggal yang sama
+        return redirect(url_for('admin.riwayat_absensi', start_date=start_date_str))
+
+    # --- Method GET: Isi form dengan data yang sudah ada ---
+    # Blok ini hanya berjalan saat halaman pertama kali dibuka
+    if request.method == 'GET':
+        # --- PERBAIKAN KUNCI DI SINI ---
+        form.santri.data = santri.id
+        # -----------------------------
+        
+        absensi_records = RekapAbsensi.query.filter(
+            RekapAbsensi.santri_id == santri_id,
+            RekapAbsensi.tanggal.between(start_date, end_date)
+        ).all()
+        
+        if absensi_records:
+            form.keterangan.data = absensi_records[0].keterangan_mingguan
+            form.status_lunas.data = absensi_records[0].status_lunas
+
+        absensi_dict = {rec.tanggal: rec for rec in absensi_records}
+        day_index = 0
+        for i in range(7):
+            current_date = start_date + timedelta(days=i)
+            if current_date.weekday() == 4: continue
+            
+            record = absensi_dict.get(current_date)
+            if record:
+                form.days[day_index].hadir.data = record.jumlah_hadir
+                form.days[day_index].sakit_izin.data = record.jumlah_sakit_izin
+                form.days[day_index].alpa.data = record.jumlah_alpa
+            else:
+                if current_date.weekday() == 1: form.days[day_index].hadir.data = 2
+                elif current_date.weekday() in [3, 6]: form.days[day_index].hadir.data = 3
+                else: form.days[day_index].hadir.data = 4
+            day_index += 1
+
+    nama_hari = ["Sabtu", "Minggu", "Senin", "Selasa", "Rabu", "Kamis"]
+    return render_template(
+        'edit_absensi_harian.html',
+        title=f"Edit Absensi Mingguan: {santri.nama_lengkap}",
+        form=form,
+        nama_hari=nama_hari
     )

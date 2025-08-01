@@ -51,7 +51,11 @@
                 {{ form.keterangan.label(class="form-label") }}
                 {{ form.keterangan(class="form-control", placeholder="Cth: Sakit batuk selama 3 hari, Izin keluarga hari Senin") }}
             </div>
-            {{ form.submit(class="btn btn-primary") }}
+            <div class="row mt-3">
+    <div class="col-md-8">{{ form.keterangan.label(class="form-label") }} {{ form.keterangan(class="form-control") }}</div>
+    <div class="col-md-4">{{ form.status_lunas.label(class="form-label") }} {{ form.status_lunas(class="form-select") }}</div>
+</div>
+<div class="mt-4">{{ form.submit(class="btn btn-primary") }}</div>
         </form>
     </div>
 </div>

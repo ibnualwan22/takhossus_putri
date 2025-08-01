@@ -657,6 +657,12 @@
     <a href="{{ url_for('admin.input_rekap_absensi') }}" class="nav-link {% if 'input_rekap_absensi' in request.endpoint %}active{% endif %}">
         <i class="bi bi-person-check"></i> <span>Input Absensi</span>
     </a>
+    <a href="{{ url_for('admin.input_rekap_lalaran') }}" class="nav-link {% if 'input_rekap_lalaran' in request.endpoint %}active{% endif %}">
+    <i class="fas fa-book-person-check"></i> <span>Input Lalaran</span>
+    </a>
+    <a href="{{ url_for('admin.input_buku_sadar') }}" class="nav-link {% if 'input_buku_sadar' in request.endpoint %}active{% endif %}">
+    <i class="fas fa-book-person-check"></i> <span>Input Buku Sadar</span>
+</a>
     </div>
             
             <div class="nav-section">
@@ -670,6 +676,9 @@
                 <a href="{{ url_for('admin.riwayat_sks_global') }}" class="nav-link {% if request.endpoint == 'admin.riwayat_sks_global' %}active{% endif %}">
                     <i class="bi bi-award"></i> <span>Riwayat SKS</span>
                 </a>
+                <a href="{{ url_for('admin.riwayat_lalaran') }}" class="nav-link {% if 'riwayat_lalaran' in request.endpoint %}active{% endif %}">
+    <i class="fas fa-running"></i> <span>Riwayat Lalaran</span>
+</a>
                  <a href="{{ url_for('admin.laporan_ke_wali') }}" class="nav-link {% if request.endpoint == 'admin.laporan_ke_wali' %}active{% endif %}">
                     <i class="bi bi-whatsapp"></i> <span>Laporan ke Wali</span>
                 </a>

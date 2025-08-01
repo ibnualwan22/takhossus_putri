@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-card">
+    <div class="card-header"><h3 class="card-title">{{ title }}</h3></div>
+    <div class="card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="row mb-3">
+                <div class="col-md-6">{{ form.santri.label(class="form-label") }} {{ form.santri(class="form-select") }}</div>
+                <div class="col-md-6">{{ form.tanggal_awal_minggu.label(class="form-label") }} {{ form.tanggal_awal_minggu(class="form-control") }}</div>
+            </div>
+            <hr>
+            <h6>Input Status Lalaran Harian</h6>
+            {% for day_form in form.days %}
+            <div class="row g-3 align-items-center mb-2">
+                <div class="col-md-2"><label class="form-label fw-bold">{{ nama_hari[loop.index0] }}</label></div>
+                <div class="col-md-4">{{ day_form.status(class="form-select") }}</div>
+            </div>
+            {% endfor %}
+            <div class="mt-4">{{ form.submit(class="btn btn-primary") }}</div>
+        </form>
+    </div>
+</div>
+{% endblock %}

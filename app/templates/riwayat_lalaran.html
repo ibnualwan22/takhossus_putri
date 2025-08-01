@@ -2,9 +2,9 @@
 
 {% block content %}
 <div class="content-card mb-4">
-    <div class="card-header"><h3 class="card-title">Filter Riwayat Buku Sadar</h3></div>
+    <div class="card-header"><h3 class="card-title">Filter Riwayat Lalaran</h3></div>
     <div class="card-body">
-        <form method="GET" action="{{ url_for('admin.riwayat_buku_sadar') }}" class="row g-3 align-items-end">
+        <form method="GET" action="{{ url_for('admin.riwayat_lalaran') }}" class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label for="start_date" class="form-label">Pilih Hari Sabtu di Minggu Tersebut</label>
                 <input type="date" name="start_date" id="start_date" value="{{ start_date_str }}" class="form-control">
@@ -15,7 +15,7 @@
             </div>
             <div class="col-md-4">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filter</button>
-                <a href="{{ url_for('admin.riwayat_buku_sadar') }}" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Reset</a>
+                <a href="{{ url_for('admin.riwayat_lalaran') }}" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Reset</a>
             </div>
         </form>
     </div>
@@ -25,24 +25,21 @@
     <div class="card-header"><h3 class="card-title">{{ title }}</h3></div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered text-center" style="font-size: 11px;">
+            <table class="table table-bordered text-center" style="font-size: 12px;">
                 <thead class="align-middle">
                     <tr>
                         <th rowspan="2">NO</th>
                         <th rowspan="2" style="min-width: 150px; text-align: left;">NAMA</th>
                         <th rowspan="2">KELAS</th>
                         {% for day in active_dates %}
-                        <th colspan="2">{{ day.strftime('%a, %d/%m') }}</th>
+                        <th>{{ day.strftime('%a, %d/%m') }}</th>
                         {% endfor %}
                         <th colspan="2">TOTAL</th>
                         <th rowspan="2">RIYADHOH</th>
-                        <th rowspan="2">STATUS</th>
-                        <th rowspan="2">AKSI</th>
                     </tr>
                     <tr>
                         {% for day in active_dates %}
-                        <th>A</th>
-                        <th>T</th>
+                        <th>Status</th>
                         {% endfor %}
                         <th>A</th>
                         <th>T</th>
@@ -54,30 +51,23 @@
                         <td>{{ loop.index }}</td>
                         <td style="text-align: left;">{{ nama }}</td>
                         <td>{{ data.kelas }}</td>
-                        
                         {% for day in active_dates %}
-                            {% set daily_rec = data.daily_records.get(day, {'A': 0, 'T': 0}) %}
-                            <td>{{ daily_rec.A }}</td>
-                            <td>{{ daily_rec.T }}</td>
+                            <td>{{ data.lalaran_harian.get(day, '') }}</td>
                         {% endfor %}
-
                         <td><b>{{ data.total_alpa }}</b></td>
                         <td><b>{{ data.total_telat }}</b></td>
                         <td style="text-align: left;">{{ data.riyadhoh }}</td>
-                        <td>{{ data.status_lunas }}</td>
-                        <td>
-                            <a href="{{ url_for('admin.koreksi_buku_sadar', santri_id=data.id, start_date_str=start_date_str) }}" class="btn btn-warning btn-sm" title="Edit/Koreksi">
-                                <i class="fas fa-pencil-alt"></i>
-                            </a>
-                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="100%" class="p-4">Tidak ada catatan Buku Sadar pada minggu ini.</td>
+                        <td colspan="{{ 6 + active_dates|length }}" class="p-4">Tidak ada santri yang alpa atau telat pada minggu ini.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        <div class="mt-3 small text-muted">
+            Keterangan: <b>A</b>=Alpa, <b>T</b>=Telat
         </div>
     </div>
 </div>

@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="content-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">{{ title }}</h3>
+        <a href="{{ url_for('admin.riwayat_absensi') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left"></i> Kembali ke Laporan
+        </a>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">Ubah jumlah sesi kehadiran di bawah ini. Pastikan total sesi per hari sesuai (Selasa: 2, Ahad/Kamis: 3, Lainnya: 4).</p>
+        
+        <form method="POST" action="">
+    {{ form.hidden_tag() }}
+
+    {{ form.santri(hidden=True) }}
+
+    <hr>
+    <h6>Detail Kehadiran Harian</h6>
+            {% for day_form in form.days %}
+            <div class="row g-3 align-items-center mb-3 p-2 border rounded {% if day_form.hadir.errors %}border-danger{% endif %}">
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">{{ nama_hari[loop.index0] }}</label>
+                    {% if day_form.hadir.errors %}
+                        <div class="text-danger small mt-2">{{ day_form.hadir.errors[0] }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.hadir.label(class="form-label") }}
+                    {{ day_form.hadir(class="form-control") }}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.sakit_izin.label(class="form-label") }}
+                    {{ day_form.sakit_izin(class="form-control") }}
+                </div>
+                <div class="col-md-2">
+                    {{ day_form.alpa.label(class="form-label") }}
+                    {{ day_form.alpa(class="form-control") }}
+                </div>
+            </div>
+            {% endfor %}
+            <hr>
+            <div class="row mt-3">
+                <div class="col-md-8">{{ form.keterangan.label(class="form-label") }} {{ form.keterangan(class="form-control") }}</div>
+                <div class="col-md-4">{{ form.status_lunas.label(class="form-label") }} {{ form.status_lunas(class="form-select") }}</div>
+            </div>
+            <div class="mt-4">{{ form.submit(class="btn btn-primary", value="Simpan Perubahan") }}</div>
+        </form>
+    </div>
+</div>
+{% endblock %}

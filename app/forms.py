@@ -64,11 +64,14 @@ class RekapAbsensiHarianForm(FlaskForm):
     days = FieldList(FormField(AbsensiHarianForm), min_entries=6, max_entries=6)
     
     keterangan = StringField('Keterangan Tambahan Mingguan')
+    status_lunas = SelectField('Status Lunas', choices=[
+        ('Belum Lunas', 'Belum Lunas'),
+        ('Lunas', 'Lunas')
+    ])
     submit = SubmitField('Simpan Rekap Seminggu')
 
     # Fungsi validasi kustom yang baru
     def validate(self, **kwargs):
-        # Jalankan validasi bawaan terlebih dahulu
         if not super().validate(**kwargs):
             return False
 
@@ -79,24 +82,58 @@ class RekapAbsensiHarianForm(FlaskForm):
         for i, day_form in enumerate(self.days.entries):
             total_sesi = day_form.hadir.data + day_form.sakit_izin.data + day_form.alpa.data
             
-            # Jika total sesi untuk satu hari tidak sama dengan 4
-            if total_sesi != 4:
-                # Tambahkan pesan error spesifik ke field 'hadir' pada hari tersebut
-                error_message = f'Total sesi hari {nama_hari[i]} harus 4, bukan {total_sesi}.'
+            # --- LOGIKA KONDISIONAL BARU ---
+            # i=0 Sabtu, i=1 Minggu, i=2 Senin, i=3 Selasa, i=4 Rabu, i=5 Kamis
+            if i == 1 or i == 5:  # Jika hari adalah Minggu atau Kamis
+                expected_total = 3
+            elif i == 3: # Jika hari adalah Selasa
+                expected_total = 2
+            else:       # Untuk hari-hari lainnya (Sabtu, Senin, Rabu)
+                expected_total = 4
+            # --------------------------------
+
+            if total_sesi != expected_total:
+                error_message = f'Total sesi hari {nama_hari[i]} harus {expected_total}, bukan {total_sesi}.'
                 day_form.hadir.errors.append(error_message)
                 form_valid = False
         
         return form_valid
+# app/forms.py
+
+class BukuSadarHarianForm(NoCsrfForm):
+    alpa = IntegerField('Alpa', default=0)
+    telat = IntegerField('Telat', default=0)
+
+# Form utama untuk rekap mingguan
+class RekapBukuSadarMingguanForm(FlaskForm):
+    santri = SelectField('Nama Santri', coerce=int, validators=[DataRequired()])
+    tanggal_awal_minggu = DateField('Pilih Hari Sabtu di Minggu Tersebut', validators=[DataRequired()])
+    
+    days = FieldList(FormField(BukuSadarHarianForm), min_entries=6, max_entries=6)
+    
+    keterangan = StringField('Keterangan Tambahan Mingguan')
+    status_lunas = SelectField('Status Lunas', choices=[('Belum Lunas', 'Belum Lunas'), ('Lunas', 'Lunas')])
+    submit = SubmitField('Simpan Rekap Buku Sadar')
     
 class KoreksiBukuSadarForm(FlaskForm):
-    # FieldList untuk 6 hari aktif
-    days = FieldList(FormField(AbsensiHarianForm), min_entries=6, max_entries=6)
+    # FieldList untuk 6 hari aktif (Sabtu-Kamis)
+    days = FieldList(FormField(BukuSadarHarianForm), min_entries=6, max_entries=6)
     
     keterangan = StringField('Keterangan Umum Mingguan')
-    riyadhoh = StringField('Riyadhoh / Sanksi')
     status_lunas = SelectField(
         'Status Lunas',
         choices=[('Belum Lunas', 'Belum Lunas'), ('Lunas', 'Lunas')],
         validators=[DataRequired()]
     )
-    submit = SubmitField('Simpan Koreksi')
+    submit = SubmitField('Simpan Perubahan')
+
+class LalaranHarianForm(NoCsrfForm):
+    # Pilihan: Hadir (dikosongi), Alpa (A), Telat (T), Izin (I)
+    status = SelectField('Status', choices=[('', 'Hadir'), ('A', 'Alpa'), ('T', 'Telat'), ('I', 'Izin')])
+
+# Form utama untuk rekap mingguan
+class RekapLalaranMingguanForm(FlaskForm):
+    santri = SelectField('Nama Santri', coerce=int, validators=[DataRequired()])
+    tanggal_awal_minggu = DateField('Pilih Hari Sabtu di Minggu Tersebut', validators=[DataRequired()])
+    days = FieldList(FormField(LalaranHarianForm), min_entries=6, max_entries=6)
+    submit = SubmitField('Simpan Rekap Lalaran')
